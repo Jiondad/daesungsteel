@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MonthlyRecord } from './types';
+import { MonthlyRecord, MonthlyTarget } from './types';
 import Dashboard from './components/Dashboard';
 import DataEntry from './components/DataEntry';
 import Roadmap from './components/Roadmap';
+import { TARGETS_2026 } from './constants';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, 
@@ -33,12 +34,39 @@ const SEED_RECORDS: MonthlyRecord[] = [
   { id: "2026-06", year: 2026, month: 6, diesel: 490, cityGas: 950, electricity: 71200, water: 220, revenue: 135 },
 ];
 
+const LOCAL_STORAGE_TARGETS_KEY = 'daesung_steel_ghg_targets';
+
 export default function App() {
   const [records, setRecords] = useState<MonthlyRecord[]>([]);
+  const [targets, setTargets] = useState<Record<number, MonthlyTarget[]>>({});
   const [activeTab, setActiveTab] = useState<'dashboard' | 'entry' | 'roadmap'>('dashboard');
 
   // Initialize and load from local storage (or seed if empty)
   useEffect(() => {
+    const savedTargets = localStorage.getItem(LOCAL_STORAGE_TARGETS_KEY);
+    if (savedTargets) {
+      try {
+        setTargets(JSON.parse(savedTargets));
+      } catch (e) {
+        console.error('Error parsing local storage targets', e);
+        const defaultTargets = {
+          2026: TARGETS_2026,
+          2025: TARGETS_2026.map(t => ({ ...t })),
+          2024: TARGETS_2026.map(t => ({ ...t })),
+        };
+        setTargets(defaultTargets);
+        localStorage.setItem(LOCAL_STORAGE_TARGETS_KEY, JSON.stringify(defaultTargets));
+      }
+    } else {
+      const defaultTargets = {
+        2026: TARGETS_2026,
+        2025: TARGETS_2026.map(t => ({ ...t })),
+        2024: TARGETS_2026.map(t => ({ ...t })),
+      };
+      setTargets(defaultTargets);
+      localStorage.setItem(LOCAL_STORAGE_TARGETS_KEY, JSON.stringify(defaultTargets));
+    }
+
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
@@ -73,6 +101,31 @@ export default function App() {
         updated = [...prev, record];
       }
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Save or update multiple records at once
+  const handleSaveRecords = (newRecords: MonthlyRecord[]) => {
+    setRecords((prev) => {
+      const recordMap = new Map(prev.map(r => [r.id, r]));
+      newRecords.forEach(record => {
+        recordMap.set(record.id, record);
+      });
+      const updated = Array.from(recordMap.values());
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Save or update targets for a specific year
+  const handleSaveTargets = (year: number, yearTargets: MonthlyTarget[]) => {
+    setTargets((prev) => {
+      const updated = {
+        ...prev,
+        [year]: yearTargets,
+      };
+      localStorage.setItem(LOCAL_STORAGE_TARGETS_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -174,13 +227,16 @@ export default function App() {
               <Dashboard 
                 records={records} 
                 onNavigateToEntry={() => setActiveTab('entry')} 
+                targets={targets}
               />
             )}
             {activeTab === 'entry' && (
               <DataEntry
                 records={records}
-                onSaveRecord={handleSaveRecord}
+                onSaveRecords={handleSaveRecords}
                 onDeleteRecord={handleDeleteRecord}
+                targets={targets}
+                onSaveTargets={handleSaveTargets}
               />
             )}
             {activeTab === 'roadmap' && (

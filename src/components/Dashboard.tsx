@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { MonthlyRecord } from '../types';
+import { MonthlyRecord, MonthlyTarget } from '../types';
 import { EMISSION_FACTORS, TARGETS_2026, calculateEmissions, calculateWaterEmissions } from '../constants';
 import {
   ResponsiveContainer,
@@ -37,9 +37,10 @@ import {
 interface DashboardProps {
   records: MonthlyRecord[];
   onNavigateToEntry: () => void;
+  targets?: Record<number, MonthlyTarget[]>;
 }
 
-export default function Dashboard({ records, onNavigateToEntry }: DashboardProps) {
+export default function Dashboard({ records, onNavigateToEntry, targets = {} }: DashboardProps) {
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedMonth, setSelectedMonth] = useState<number>(6); // Default to June, which is the current month in June 2026!
 
@@ -55,9 +56,9 @@ export default function Dashboard({ records, onNavigateToEntry }: DashboardProps
 
   // Selected Month's target
   const currentMonthTarget = useMemo(() => {
-    // KPI is only specified for 2026, for other years we can estimate or use 2026 as a reference
-    return TARGETS_2026[selectedMonth - 1];
-  }, [selectedMonth]);
+    const yearTargets = targets[selectedYear] || TARGETS_2026;
+    return yearTargets[selectedMonth - 1] || TARGETS_2026[selectedMonth - 1];
+  }, [targets, selectedYear, selectedMonth]);
 
   // Calculate actual emissions for selected month
   const currentMonthEmissions = useMemo(() => {
@@ -127,7 +128,8 @@ export default function Dashboard({ records, onNavigateToEntry }: DashboardProps
       actualRevenue += r.revenue || 0;
 
       // Sum targets up to entered months for run-rate comparison
-      const t = TARGETS_2026[r.month - 1];
+      const yearTargets = targets[selectedYear] || TARGETS_2026;
+      const t = yearTargets[r.month - 1] || TARGETS_2026[r.month - 1];
       const tEm = calculateEmissions(t.diesel, t.cityGas, t.electricity);
       targetTotalForActiveMonths += tEm.total;
     });
@@ -154,7 +156,8 @@ export default function Dashboard({ records, onNavigateToEntry }: DashboardProps
   const chartData = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
-      const target = TARGETS_2026[i];
+      const yearTargets = targets[selectedYear] || TARGETS_2026;
+      const target = yearTargets[i] || TARGETS_2026[i];
       const targetEm = calculateEmissions(target.diesel, target.cityGas, target.electricity);
       
       const record = yearRecords.find(r => r.month === monthNum);
