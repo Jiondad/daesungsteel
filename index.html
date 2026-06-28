@@ -666,7 +666,7 @@
     const Dashboard = ({ records, targets = {}, onNavigateToEntry }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
       const [fromMonth, setFromMonth] = useState(1);
-      const [toMonth, setToMonth] = useState(6);
+      const [toMonth, setToMonth] = useState(12);
       const [printDate, setPrintDate] = useState('');
       const [showPrintNotice, setShowPrintNotice] = useState(false);
 
@@ -967,7 +967,11 @@
             <div className="flex flex-wrap items-center gap-3">
               <select
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                onChange={(e) => {
+                  setSelectedYear(Number(e.target.value));
+                  setFromMonth(1);
+                  setToMonth(12);
+                }}
                 className="h-9 bg-[#FAF9F6] border border-[#E5E2D9] px-3 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
               >
                 <option value={2026}>2026년</option>
@@ -978,6 +982,7 @@
               <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 h-9 text-xs sm:text-sm">
                 <span className="text-[#78716C] font-semibold text-[11px] mr-1 uppercase">시작</span>
                 <select
+                  id="start-month"
                   value={fromMonth}
                   onChange={handleFromMonthChange}
                   className="bg-transparent font-mono cursor-pointer focus:outline-none"
@@ -989,6 +994,7 @@
                 <span className="text-[#78716C] px-1 font-semibold">~</span>
                 <span className="text-[#78716C] font-semibold text-[11px] mr-1 uppercase">종료</span>
                 <select
+                  id="end-month"
                   value={toMonth}
                   onChange={handleToMonthChange}
                   className="bg-transparent font-mono cursor-pointer focus:outline-none"
