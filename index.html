@@ -1910,7 +1910,7 @@
 
 
     // --- TARGET SETTING COMPONENT ---
-    const TargetSetting = ({ targets, onSaveTargets }) => {
+    const TargetSetting = ({ targets, onSaveTargets, records }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
       const [editedTargets, setEditedTargets] = useState([]);
       const [successMessage, setSuccessMessage] = useState('');
@@ -1922,7 +1922,8 @@
           diesel: (t.diesel !== undefined && t.diesel !== null) ? t.diesel.toString() : '',
           cityGas: (t.cityGas !== undefined && t.cityGas !== null) ? t.cityGas.toString() : '',
           electricity: (t.electricity !== undefined && t.electricity !== null) ? t.electricity.toString() : '',
-          water: (t.water !== undefined && t.water !== null) ? t.water.toString() : ''
+          water: (t.water !== undefined && t.water !== null) ? t.water.toString() : '',
+          revenue: (t.revenue !== undefined && t.revenue !== null) ? t.revenue.toString() : '120'
         })));
       }, [selectedYear, targets]);
 
@@ -1944,12 +1945,13 @@
           const g = parseFloat(t.cityGas);
           const el = parseFloat(t.electricity);
           const w = parseFloat(t.water);
+          const r = parseFloat(t.revenue);
 
-          if (isNaN(d) || d < 0 || isNaN(g) || g < 0 || isNaN(el) || el < 0 || isNaN(w) || w < 0) {
+          if (isNaN(d) || d < 0 || isNaN(g) || g < 0 || isNaN(el) || el < 0 || isNaN(w) || w < 0 || isNaN(r) || r < 0) {
             setErrorMessage(`${i + 1}월 목표 항목에 0 이상의 올바른 숫자를 입력해주세요.`);
             return;
           }
-          parsed.push({ diesel: d, cityGas: g, electricity: el, water: w });
+          parsed.push({ diesel: d, cityGas: g, electricity: el, water: w, revenue: r });
         }
 
         onSaveTargets(selectedYear, parsed);
@@ -1959,13 +1961,80 @@
       };
 
       const handleLoadDefaults = () => {
-        if (window.confirm('기존 설정해 둔 목표를 2026년 표준 가이드라인 기본값으로 모두 덮어씌우시겠습니까?')) {
-          setEditedTargets(TARGETS_2026.map(t => ({
-            diesel: t.diesel.toString(),
-            cityGas: t.cityGas.toString(),
-            electricity: t.electricity.toString(),
-            water: t.water.toString()
-          })));
+        if (window.confirm(`${selectedYear}년도의 목표 매출액과 과거 2개년(2025~2026년) 동월 실제 실적 데이터를 연동한 '계절성 반영 원단위 연동형 목표' 가이드라인을 일괄 계산하여 불러오시겠습니까?`)) {
+          // LocalStorage의 최신 실제 기록도 동기화하여 읽어옵니다.
+          const rawSavedRecords = localStorage.getItem('daesung_steel_ghg_records');
+          let currentRecords = records;
+          if (rawSavedRecords) {
+            try {
+              currentRecords = JSON.parse(rawSavedRecords);
+            } catch (e) {
+              console.error('기록 파싱 실패:', e);
+            }
+          }
+
+          const updated = editedTargets.map((t, idx) => {
+            const m = idx + 1;
+            const currentRevenue = parseFloat(t.revenue) || 120;
+
+            const r2025 = currentRecords.find(r => Number(r.year) === 2025 && Number(r.month) === m);
+            const r2026 = currentRecords.find(r => Number(r.year) === 2026 && Number(r.month) === m);
+
+            const calculateTargetForEnergy = (energyKey, fallbackVal) => {
+              let totalUsage = 0;
+              let totalRev = 0;
+              let hasData = false;
+
+              // 2025년 실제 실적 반영
+              if (r2025 && r2025[energyKey] !== undefined && r2025[energyKey] !== null && r2025[energyKey] !== '') {
+                const u25 = parseFloat(r2025[energyKey]);
+                const rev25 = parseFloat(r2025.revenue);
+                if (!isNaN(u25) && !isNaN(rev25) && rev25 > 0) {
+                  totalUsage += u25;
+                  totalRev += rev25;
+                  hasData = true;
+                }
+              }
+
+              // 2026년 실제 실적 반영
+              if (r2026 && r2026[energyKey] !== undefined && r2026[energyKey] !== null && r2026[energyKey] !== '') {
+                const u26 = parseFloat(r2026[energyKey]);
+                const rev26 = parseFloat(r2026.revenue);
+                if (!isNaN(u26) && !isNaN(rev26) && rev26 > 0) {
+                  totalUsage += u26;
+                  totalRev += rev26;
+                  hasData = true;
+                }
+              }
+
+              // 데이터가 존재하는 경우 계절성 반영 원단위 공식으로 계산
+              // 최종 월별 목표 사용량 = Math.round((당해연도 M월 목표 매출액 * 월별 표준 원단위) * 0.97)
+              if (hasData && totalRev > 0) {
+                const intensity = totalUsage / totalRev;
+                return Math.round((currentRevenue * intensity) * 0.97);
+              } else {
+                // 데이터가 없는 경우 계절성 고정 베이스라인 비율을 사용하여 목표 매출액에 연동 계산
+                const standardIntensity = fallbackVal / 120;
+                return Math.round((currentRevenue * standardIntensity) * 0.97);
+              }
+            };
+
+            const defaultT = TARGETS_2026[idx];
+            const dieselGoal = calculateTargetForEnergy('diesel', defaultT.diesel);
+            const cityGasGoal = calculateTargetForEnergy('cityGas', defaultT.cityGas);
+            const electricityGoal = calculateTargetForEnergy('electricity', defaultT.electricity);
+            const waterGoal = calculateTargetForEnergy('water', defaultT.water);
+
+            return {
+              ...t,
+              diesel: dieselGoal.toString(),
+              cityGas: cityGasGoal.toString(),
+              electricity: electricityGoal.toString(),
+              water: waterGoal.toString(),
+            };
+          });
+
+          setEditedTargets(updated);
         }
       };
 
@@ -2014,6 +2083,7 @@
                     <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">도시가스 목표 (Nm³)</th>
                     <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">구매전력 목표 (kWh)</th>
                     <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">상수도 목표 (TON)</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">목표 매출액 (억원)</th>
                     <th className="py-2.5 px-3 text-right whitespace-nowrap">예상 탄소 배출량 (tCO₂e)</th>
                   </tr>
                 </thead>
@@ -2034,6 +2104,7 @@
                         </td>
                         <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                           <input
+                            id={`diesel-target-${m}`}
                             type="number"
                             step="any"
                             required
@@ -2044,6 +2115,7 @@
                         </td>
                         <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                           <input
+                            id={`citygas-target-${m}`}
                             type="number"
                             step="any"
                             required
@@ -2054,6 +2126,7 @@
                         </td>
                         <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                           <input
+                            id={`electricity-target-${m}`}
                             type="number"
                             step="any"
                             required
@@ -2064,12 +2137,24 @@
                         </td>
                         <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                           <input
+                            id={`water-target-${m}`}
                             type="number"
                             step="any"
                             required
                             value={t.water}
                             onChange={(e) => handleInputChange(i, 'water', e.target.value)}
                             className="w-full bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1 text-xs text-right focus:outline-none focus:border-[#1C1A17] font-mono"
+                          />
+                        </td>
+                        <td className="py-1 px-2 border-r border-[#1C1A17]/10">
+                          <input
+                            id={`revenue-target-${m}`}
+                            type="number"
+                            step="any"
+                            required
+                            value={t.revenue}
+                            onChange={(e) => handleInputChange(i, 'revenue', e.target.value)}
+                            className="w-full bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1 text-xs text-right focus:outline-none focus:border-[#1C1A17] font-mono text-blue-700 font-bold"
                           />
                         </td>
                         <td className="py-2 px-3 text-right font-bold text-[#1E40AF]">
@@ -2080,6 +2165,13 @@
                   })}
                 </tbody>
               </table>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 p-4 text-sm text-slate-500 leading-relaxed flex items-start gap-2.5 rounded-md shadow-sm">
+              <span className="text-base shrink-0">💡</span>
+              <p>
+                <strong>본 시스템의 목표 가이드라인은</strong> (주)대성스틸의 과거 2개년(2025~2026년) 동월 실제 에너지 사용량과 매출액을 기반으로 산출된 '계절성 표준 원단위'를 근거로 작동합니다. 당해연도 월별 목표 매출액에 계절별 부하 특성(동절기 가스 사용량 증가 등)을 자동 연동한 뒤, 연간 3%의 탄소 감축 시나리오를 적용하여 산출한 합리적인 데이터 기반 예측 모델입니다.
+              </p>
             </div>
 
             {errorMessage && <p className="text-xs text-red-600 font-semibold">{errorMessage}</p>}
@@ -2230,7 +2322,7 @@
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => setActiveTab('entry')} />}
             {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} />}
-            {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} />}
+            {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} />}
             {activeTab === 'roadmap' && <Roadmap records={records} />}
           </main>
 
