@@ -663,12 +663,16 @@
 
 
     // --- MAIN DASHBOARD COMPONENT ---
-    const Dashboard = ({ records, targets = {}, onNavigateToEntry }) => {
+    const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
       const [fromMonth, setFromMonth] = useState(1);
       const [toMonth, setToMonth] = useState(12);
       const [printDate, setPrintDate] = useState('');
       const [showPrintNotice, setShowPrintNotice] = useState(false);
+
+      useEffect(() => {
+        if (onRefresh) onRefresh();
+      }, [selectedYear]);
 
       const isIframe = useMemo(() => {
         try {
@@ -1473,11 +1477,15 @@
 
 
     // --- DATA ENTRY COMPONENT ---
-    const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onSaveTargets }) => {
+    const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onSaveTargets, onRefresh }) => {
       const [year, setYear] = useState(2026);
       const [monthlyInputs, setMonthlyInputs] = useState([]);
       const [successMessage, setSuccessMessage] = useState('');
       const [errorMessage, setErrorMessage] = useState('');
+
+      useEffect(() => {
+        if (onRefresh) onRefresh();
+      }, [year]);
 
       useEffect(() => {
         const loadedInputs = Array.from({ length: 12 }, (_, i) => {
@@ -1931,11 +1939,15 @@
 
 
     // --- TARGET SETTING COMPONENT ---
-    const TargetSetting = ({ targets, onSaveTargets, records }) => {
+    const TargetSetting = ({ targets, onSaveTargets, records, onRefresh }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
       const [editedTargets, setEditedTargets] = useState([]);
       const [successMessage, setSuccessMessage] = useState('');
       const [errorMessage, setErrorMessage] = useState('');
+
+      useEffect(() => {
+        if (onRefresh) onRefresh();
+      }, [selectedYear]);
 
       useEffect(() => {
         const yearData = targets[selectedYear] || TARGETS_2026;
@@ -1984,11 +1996,16 @@
       const handleLoadDefaults = () => {
         if (window.confirm(`${selectedYear}년도 목표 설정 기본값으로 전년(${selectedYear - 1}년) 동월 실제 사용량 대비 3% 감축(사용량 * 0.97)한 가이드라인 목표를 일괄 불러오시겠습니까?`)) {
           // LocalStorage의 최신 실제 기록도 동기화하여 읽어옵니다.
-          const rawSavedRecords = localStorage.getItem('daesung_steel_ghg_records');
+          const rawSavedRecords = localStorage.getItem('daesung_actual_data');
           let currentRecords = records;
           if (rawSavedRecords) {
             try {
-              currentRecords = JSON.parse(rawSavedRecords);
+              const parsed = JSON.parse(rawSavedRecords);
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                currentRecords = Object.values(parsed).flat();
+              } else if (Array.isArray(parsed)) {
+                currentRecords = parsed;
+              }
             } catch (e) {
               console.error('기록 파싱 실패:', e);
             }
@@ -2165,7 +2182,7 @@
 
 
     // --- APP CONTAINER COMPONENT ---
-    const LOCAL_STORAGE_KEY = 'daesung_steel_ghg_records';
+    const LOCAL_STORAGE_KEY = 'daesung_actual_data';
     const SEED_RECORDS = [
       { id: "2026-01", year: 2026, month: 1, diesel: 95, cityGas: 7400, electricity: 92000, water: 260, revenue: 120 },
       { id: "2026-02", year: 2026, month: 2, diesel: 540, cityGas: 9300, electricity: 96000, water: 410, revenue: 115 },
@@ -2175,32 +2192,108 @@
       { id: "2026-06", year: 2026, month: 6, diesel: 490, cityGas: 950, electricity: 71200, water: 220, revenue: 135 },
     ];
 
+    const DEFAULT_ACTUAL_DATA = {
+      2026: SEED_RECORDS,
+      2025: [
+        { id: "2025-01", year: 2025, month: 1, diesel: 100, cityGas: 7600, electricity: 94000, water: 270, revenue: 120 },
+        { id: "2025-02", year: 2025, month: 2, diesel: 550, cityGas: 9500, electricity: 97000, water: 420, revenue: 115 },
+        { id: "2025-03", year: 2025, month: 3, diesel: 430, cityGas: 9100, electricity: 89000, water: 390, revenue: 130 },
+        { id: "2025-04", year: 2025, month: 4, diesel: 720, cityGas: 6200, electricity: 86000, water: 380, revenue: 125 },
+        { id: "2025-05", year: 2025, month: 5, diesel: 440, cityGas: 1900, electricity: 69000, water: 240, revenue: 140 },
+        { id: "2025-06", year: 2025, month: 6, diesel: 500, cityGas: 1000, electricity: 73000, water: 230, revenue: 135 },
+        { id: "2025-07", year: 2025, month: 7, diesel: 700, cityGas: 600, electricity: 86000, water: 265, revenue: 138 },
+        { id: "2025-08", year: 2025, month: 8, diesel: 650, cityGas: 500, electricity: 81000, water: 240, revenue: 130 },
+        { id: "2025-09", year: 2025, month: 9, diesel: 600, cityGas: 400, electricity: 89000, water: 260, revenue: 132 },
+        { id: "2025-10", year: 2025, month: 10, diesel: 600, cityGas: 800, electricity: 72000, water: 250, revenue: 128 },
+        { id: "2025-11", year: 2025, month: 11, diesel: 550, cityGas: 1600, electricity: 84000, water: 240, revenue: 122 },
+        { id: "2025-12", year: 2025, month: 12, diesel: 1100, cityGas: 3500, electricity: 102000, water: 245, revenue: 124 },
+      ],
+      2024: [
+        { id: "2024-01", year: 2024, month: 1, diesel: 105, cityGas: 7800, electricity: 96000, water: 280, revenue: 118 },
+        { id: "2024-02", year: 2024, month: 2, diesel: 570, cityGas: 9700, electricity: 99000, water: 430, revenue: 110 },
+        { id: "2024-03", year: 2024, month: 3, diesel: 450, cityGas: 9300, electricity: 91000, water: 400, revenue: 125 },
+        { id: "2024-04", year: 2024, month: 4, diesel: 740, cityGas: 6400, electricity: 88000, water: 390, revenue: 120 },
+        { id: "2024-05", year: 2024, month: 5, diesel: 460, cityGas: 2000, electricity: 71000, water: 250, revenue: 135 },
+        { id: "2024-06", year: 2024, month: 6, diesel: 520, cityGas: 1100, electricity: 75000, water: 240, revenue: 130 },
+        { id: "2024-07", year: 2024, month: 7, diesel: 720, cityGas: 700, electricity: 88000, water: 270, revenue: 134 },
+        { id: "2024-08", year: 2024, month: 8, diesel: 670, cityGas: 600, electricity: 83000, water: 250, revenue: 126 },
+        { id: "2024-09", year: 2024, month: 9, diesel: 620, cityGas: 500, electricity: 91000, water: 270, revenue: 128 },
+        { id: "2024-10", year: 2024, month: 10, diesel: 620, cityGas: 900, electricity: 74000, water: 260, revenue: 124 },
+        { id: "2024-11", year: 2024, month: 11, diesel: 570, cityGas: 1700, electricity: 86000, water: 250, revenue: 118 },
+        { id: "2024-12", year: 2024, month: 12, diesel: 1150, year: 2024, month: 12, diesel: 1150, cityGas: 3700, electricity: 105000, water: 250, revenue: 120 },
+      ]
+    };
+
     function App() {
       const [records, setRecords] = useState([]);
       const [targets, setTargets] = useState({});
       const [activeTab, setActiveTab] = useState('dashboard');
 
-      useEffect(() => {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
+      const refreshData = () => {
+        // 1. Load actual records with robust migration & structure safety
+        let currentActualObj = null;
+        const savedActual = localStorage.getItem(LOCAL_STORAGE_KEY);
+        
+        if (savedActual) {
           try {
-            const parsed = JSON.parse(saved);
-            const sanitized = parsed.map(r => ({
-              ...r,
-              revenue: typeof r.revenue === 'number' && !isNaN(r.revenue) ? r.revenue : 120,
-            }));
-            setRecords(sanitized);
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
+            const parsed = JSON.parse(savedActual);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              currentActualObj = parsed;
+            } else if (Array.isArray(parsed)) {
+              // Convert legacy array structure to year-keyed object
+              const grouped = {};
+              parsed.forEach(r => {
+                const yr = r.year || 2026;
+                if (!grouped[yr]) grouped[yr] = [];
+                grouped[yr].push(r);
+              });
+              currentActualObj = grouped;
+            }
           } catch (e) {
-            setRecords(SEED_RECORDS);
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(SEED_RECORDS));
+            console.error('실적 데이터 파싱 실패:', e);
           }
-        } else {
-          setRecords(SEED_RECORDS);
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(SEED_RECORDS));
         }
 
-        // Load targets
+        // Check legacy flat storage as fallback
+        if (!currentActualObj) {
+          const legacyRecords = localStorage.getItem('daesung_steel_ghg_records');
+          if (legacyRecords) {
+            try {
+              const parsedLegacy = JSON.parse(legacyRecords);
+              if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+                const grouped = {};
+                parsedLegacy.forEach(r => {
+                  const yr = r.year || 2026;
+                  if (!grouped[yr]) grouped[yr] = [];
+                  grouped[yr].push(r);
+                });
+                currentActualObj = grouped;
+              }
+            } catch (e) {
+              console.error('Legacy records parsing failed:', e);
+            }
+          }
+        }
+
+        // Merge or initialize with default actual data
+        const finalActualObj = { ...DEFAULT_ACTUAL_DATA, ...currentActualObj };
+        
+        // Sanitize data
+        const sanitizedObj = {};
+        const years = [2024, 2025, 2026];
+        years.forEach(yr => {
+          const yrRecords = finalActualObj[yr] || [];
+          sanitizedObj[yr] = yrRecords.map(r => ({
+            ...r,
+            revenue: typeof r.revenue === 'number' && !isNaN(r.revenue) ? r.revenue : 120,
+          }));
+        });
+
+        // Save back to local storage as structured object
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitizedObj));
+        setRecords(Object.values(sanitizedObj).flat());
+
+        // 2. Load targets with fallback
         const savedTargets = localStorage.getItem('daesung_steel_ghg_targets');
         if (savedTargets) {
           try {
@@ -2215,6 +2308,10 @@
           setTargets(defaultTargets);
           localStorage.setItem('daesung_steel_ghg_targets', JSON.stringify(defaultTargets));
         }
+      };
+
+      useEffect(() => {
+        refreshData();
       }, []);
 
       const handleSaveRecord = (record) => {
@@ -2227,7 +2324,24 @@
           } else {
             updated = [...prev, record];
           }
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+
+          // Fetch the latest existing data object from localStorage
+          let existingData = { ...DEFAULT_ACTUAL_DATA };
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                existingData = parsed;
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }
+
+          const recordYear = Number(record.year);
+          existingData[recordYear] = updated.filter(r => Number(r.year) === recordYear);
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existingData));
           return updated;
         });
       };
@@ -2236,7 +2350,23 @@
         setRecords(prev => {
           const filtered = prev.filter(r => r.year !== year);
           const updated = [...filtered, ...yearRecords];
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+
+          // Fetch the latest existing data object from localStorage
+          let existingData = { ...DEFAULT_ACTUAL_DATA };
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                existingData = parsed;
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }
+
+          existingData[year] = yearRecords;
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existingData));
           return updated;
         });
       };
@@ -2244,8 +2374,28 @@
       const handleDeleteRecord = (id) => {
         if (window.confirm('정말로 이 월별 실적 기록을 삭제하시겠습니까? 관련 탄소 배출 데이터가 영구 삭제됩니다.')) {
           setRecords(prev => {
+            const recordToDelete = prev.find(r => r.id === id);
             const updated = prev.filter(r => r.id !== id);
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+
+            if (recordToDelete) {
+              const recordYear = Number(recordToDelete.year);
+              let existingData = { ...DEFAULT_ACTUAL_DATA };
+              const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+              if (saved) {
+                try {
+                  const parsed = JSON.parse(saved);
+                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    existingData = parsed;
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+
+              existingData[recordYear] = updated.filter(r => Number(r.year) === recordYear);
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existingData));
+            }
+
             return updated;
           });
         }
@@ -2253,7 +2403,19 @@
 
       const handleSaveTargets = (year, newTargets) => {
         setTargets(prev => {
-          const updated = { ...prev, [year]: newTargets };
+          let existingTargets = {};
+          const saved = localStorage.getItem('daesung_steel_ghg_targets');
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed && typeof parsed === 'object') {
+                existingTargets = parsed;
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }
+          const updated = { ...existingTargets, [year]: newTargets };
           localStorage.setItem('daesung_steel_ghg_targets', JSON.stringify(updated));
           return updated;
         });
@@ -2293,9 +2455,9 @@
 
           {/* Main content */}
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => setActiveTab('entry')} />}
-            {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} />}
-            {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} />}
+            {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => setActiveTab('entry')} onRefresh={refreshData} />}
+            {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={refreshData} />}
+            {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={refreshData} />}
             {activeTab === 'roadmap' && <Roadmap records={records} />}
           </main>
 
