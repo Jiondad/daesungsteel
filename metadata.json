@@ -1,0 +1,6 @@
+{
+  "name": "대성스틸 온실가스 관리 시스템",
+  "description": "대성스틸의 온실가스 배출량 월별 KPI 대비 실적 관리 및 2030 중기 저감 로드맵 시뮬레이션 대시보드",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
