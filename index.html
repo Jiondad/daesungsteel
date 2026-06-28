@@ -1,14 +1,1351 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <title>My Google AI Studio App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>(주)대성스틸 온실가스 관리 시스템</title>
+  <!-- Noto Sans KR & JetBrains Mono Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- React & ReactDOM CDNs -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone CDN -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Noto Sans KR", "sans-serif"],
+            display: ["Noto Sans KR", "sans-serif"],
+            serif: ["Noto Sans KR", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background-color: #FAF9F6;
+      color: #1C1A17;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      background: #EAE6DD;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      background: #1C1A17;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#FAF9F6] text-[#1C1A17]">
+  <div id="root"></div>
+
+  <!-- React Code inside Babel Script -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // --- EMISSION FACTOR CONSTANTS ---
+    const EMISSION_FACTORS = {
+      diesel: 0.0025822,      // tCO2e / L
+      cityGas: 0.0021952,     // tCO2e / Nm³
+      electricity: 0.0004687, // tCO2e / kWh
+      water: 0.000237,        // tCO2e / TON
+    };
+
+    const TARGETS_2026 = [
+      { diesel: 99, cityGas: 7565, electricity: 93242, water: 277 },
+      { diesel: 530, cityGas: 9173, electricity: 94822, water: 419 },
+      { diesel: 441, cityGas: 9065, electricity: 88970, water: 397 },
+      { diesel: 691, cityGas: 5982, electricity: 83787, water: 366 },
+      { diesel: 452, cityGas: 1860, electricity: 68539, water: 238 },
+      { diesel: 487, cityGas: 941, electricity: 70912, water: 226 },
+      { diesel: 684, cityGas: 537, electricity: 84655, water: 260 },
+      { diesel: 638, cityGas: 425, electricity: 79401, water: 234 },
+      { diesel: 582, cityGas: 369, electricity: 87577, water: 254 },
+      { diesel: 582, cityGas: 739, electricity: 70004, water: 247 },
+      { diesel: 532, cityGas: 1517, electricity: 82935, water: 238 },
+      { diesel: 1094, cityGas: 3387, electricity: 100981, water: 240 },
+    ];
+
+    const ROADMAP_TARGETS = [
+      { year: 2025, target: 579.116, scope1: 92.720, scope2: 486.396, label: "기준(2025)" },
+      { year: 2026, target: 568.698, scope1: 106.622, scope2: 462.076, label: "2026목표" },
+      { year: 2027, target: 542.395, label: "2027목표" },
+      { year: 2028, target: 517.345, label: "2028목표" },
+      { year: 2029, target: 493.483, label: "2029목표" },
+      { year: 2030, target: 470.756, label: "2030목표" },
+    ];
+
+    function calculateEmissions(diesel, cityGas, electricity) {
+      const s1Diesel = (diesel || 0) * EMISSION_FACTORS.diesel;
+      const s1Gas = (cityGas || 0) * EMISSION_FACTORS.cityGas;
+      const s2Elec = (electricity || 0) * EMISSION_FACTORS.electricity;
+      return {
+        scope1: s1Diesel + s1Gas,
+        scope2: s2Elec,
+        total: s1Diesel + s1Gas + s2Elec,
+      };
+    }
+
+    // --- REUSABLE SVG ICON COMPONENT ---
+    const Icon = ({ name, className = "w-4 h-4" }) => {
+      const icons = {
+        dashboard: <path d="M3 3h7v9H3zm11 0h7v5h-7zm0 9h7v9h-7zm-11 11h7v-5H3z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        edit: <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        compass: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.42 4.24-4.24 1.42 1.42-4.24Z"/></g>,
+        building: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22V12h6v10M8 6h2M14 6h2M8 10h2M14 10h2"/></g>,
+        alert: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></g>,
+        trend: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 17-5.64-5.64a1 1 0 0 0-1.41 0L13.71 12.6a1 1 0 0 1-1.42 0L2 2"/><path d="M16 17h6v-6"/></g>,
+        plus: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></g>,
+        trash: <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        rotate: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></g>,
+        flame: <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        droplet: <path d="M12 22a7 7 0 0 0 7-7c0-4.3-7-13-7-13S5 10.7 5 15a7 7 0 0 0 7 7z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        info: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></g>,
+        coins: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6"/><circle cx="18" cy="18" r="4"/><path d="M12 18a6 6 0 0 0-6-6M18 12a4 4 0 0 0-4-4"/></g>,
+        layers: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polygon points="2 17 12 22 22 17"/><polygon points="2 12 12 17 22 12"/></g>,
+        chevron: <polyline points="9 18 15 12 9 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
+        database: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></g>
+      };
+      return (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className}>
+          {icons[name] || <circle cx="12" cy="12" r="10" />}
+        </svg>
+      );
+    };
+
+    // --- CHART COMPONENTS USING RAW CHART.JS CANVAS ---
+    const MonthlyEmissionsChart = ({ data }) => {
+      const canvasRef = useRef(null);
+      const chartInstance = useRef(null);
+
+      useEffect(() => {
+        if (!canvasRef.current) return;
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+        }
+
+        const ctx = canvasRef.current.getContext('2d');
+        chartInstance.current = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.map(d => `${d.month}월`),
+            datasets: [
+              {
+                label: '실제 Scope 1',
+                data: data.map(d => d.scope1),
+                backgroundColor: '#B45309',
+                stack: 'actual'
+              },
+              {
+                label: '실제 Scope 2',
+                data: data.map(d => d.scope2),
+                backgroundColor: '#1E40AF',
+                stack: 'actual'
+              },
+              {
+                label: '목표 배출량 (t)',
+                data: data.map(d => d.target),
+                borderColor: '#991B1B',
+                borderWidth: 2.5,
+                type: 'line',
+                fill: false,
+                tension: 0.1,
+                pointBackgroundColor: '#991B1B'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              }
+            },
+            scales: {
+              x: {
+                stacked: true,
+                grid: { color: '#F3F4F6' }
+              },
+              y: {
+                stacked: true,
+                grid: { color: '#F3F4F6' },
+                title: { display: true, text: 'tCO₂e', font: { family: 'Noto Sans KR' } }
+              }
+            }
+          }
+        });
+
+        return () => {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+        };
+      }, [data]);
+
+      return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
+    };
+
+    const RevenueIntensityChart = ({ data }) => {
+      const canvasRef = useRef(null);
+      const chartInstance = useRef(null);
+
+      useEffect(() => {
+        if (!canvasRef.current) return;
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+        }
+
+        const ctx = canvasRef.current.getContext('2d');
+        chartInstance.current = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.map(d => `${d.month}월`),
+            datasets: [
+              {
+                label: '월별 매출액 (억원)',
+                data: data.map(d => d.revenue),
+                backgroundColor: '#EAE6DD',
+                yAxisID: 'y'
+              },
+              {
+                label: '배출 원단위 (t/억원)',
+                data: data.map(d => d.intensity),
+                borderColor: '#15803D',
+                borderWidth: 2.5,
+                type: 'line',
+                fill: false,
+                tension: 0.1,
+                pointBackgroundColor: '#15803D',
+                yAxisID: 'y1'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { grid: { color: '#F3F4F6' } },
+              y: {
+                position: 'left',
+                grid: { color: '#F3F4F6' },
+                title: { display: true, text: '매출액 (억원)', font: { family: 'Noto Sans KR' } }
+              },
+              y1: {
+                position: 'right',
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: '배출 원단위', font: { family: 'Noto Sans KR' } }
+              }
+            }
+          }
+        });
+
+        return () => {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+        };
+      }, [data]);
+
+      return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
+    };
+
+    const RoadmapSimulatorChart = ({ data }) => {
+      const canvasRef = useRef(null);
+      const chartInstance = useRef(null);
+
+      useEffect(() => {
+        if (!canvasRef.current) return;
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+        }
+
+        const ctx = canvasRef.current.getContext('2d');
+        chartInstance.current = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: data.map(d => d.year),
+            datasets: [
+              {
+                label: '감축 목표선',
+                data: data.map(d => d.target),
+                borderColor: '#991B1B',
+                borderWidth: 2.5,
+                fill: false,
+                tension: 0.1,
+                pointBackgroundColor: '#991B1B'
+              },
+              {
+                label: '시뮬레이션 경로',
+                data: data.map(d => d.sim),
+                borderColor: '#166534',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.1,
+                pointBackgroundColor: '#166534'
+              },
+              {
+                label: '실제 배출량(연환산)',
+                data: data.map(d => d.actual),
+                backgroundColor: '#1E40AF',
+                borderColor: '#1E40AF',
+                borderWidth: 0,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                showLine: false,
+                type: 'line'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { grid: { color: '#F3F4F6' } },
+              y: {
+                min: 400,
+                max: 600,
+                grid: { color: '#F3F4F6' },
+                title: { display: true, text: 'tCO₂e', font: { family: 'Noto Sans KR' } }
+              }
+            }
+          }
+        });
+
+        return () => {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+        };
+      }, [data]);
+
+      return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
+    };
+
+
+    // --- MAIN DASHBOARD COMPONENT ---
+    const Dashboard = ({ records, onNavigateToEntry }) => {
+      const [selectedYear, setSelectedYear] = useState(2026);
+      const [selectedMonth, setSelectedMonth] = useState(6);
+
+      const yearRecords = useMemo(() => records.filter(r => r.year === selectedYear), [records, selectedYear]);
+      const currentMonthRecord = useMemo(() => yearRecords.find(r => r.month === selectedMonth), [yearRecords, selectedMonth]);
+      const currentMonthTarget = useMemo(() => TARGETS_2026[selectedMonth - 1] || TARGETS_2026[0], [selectedMonth]);
+
+      // Cumulative calculations
+      const annualCumulative = useMemo(() => {
+        let actualScope1 = 0, actualScope2 = 0, actualTotal = 0, actualWater = 0;
+        let targetTotalForActiveMonths = 0, annualTargetTotal = 0;
+        let activeMonthsCount = 0;
+
+        TARGETS_2026.forEach((target, i) => {
+          const em = calculateEmissions(target.diesel, target.cityGas, target.electricity);
+          annualTargetTotal += em.total;
+
+          const record = yearRecords.find(r => r.month === (i + 1));
+          if (record) {
+            const actualEm = calculateEmissions(record.diesel, record.cityGas, record.electricity);
+            actualScope1 += actualEm.scope1;
+            actualScope2 += actualEm.scope2;
+            actualTotal += actualEm.total;
+            actualWater += record.water * EMISSION_FACTORS.water;
+            targetTotalForActiveMonths += em.total;
+            activeMonthsCount++;
+          }
+        });
+
+        return {
+          actualScope1,
+          actualScope2,
+          actualTotal,
+          actualWater,
+          targetTotalForActiveMonths,
+          annualTargetTotal,
+          activeMonthsCount,
+          percentOfAnnualTarget: annualTargetTotal > 0 ? (actualTotal / annualTargetTotal) * 100 : 0,
+        };
+      }, [yearRecords]);
+
+      // Primary Mixed Graph Data (12 Months)
+      const chartData1 = useMemo(() => {
+        return Array.from({ length: 12 }, (_, i) => {
+          const m = i + 1;
+          const target = TARGETS_2026[i];
+          const record = yearRecords.find(r => r.month === m);
+
+          const targetEm = calculateEmissions(target.diesel, target.cityGas, target.electricity);
+          const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity) : null;
+
+          return {
+            month: m,
+            scope1: actualEm ? actualEm.scope1 : 0,
+            scope2: actualEm ? actualEm.scope2 : 0,
+            target: targetEm.total,
+          };
+        });
+      }, [yearRecords]);
+
+      // Revenue & Intensity Graph Data (12 Months)
+      const chartData2 = useMemo(() => {
+        return Array.from({ length: 12 }, (_, i) => {
+          const m = i + 1;
+          const record = yearRecords.find(r => r.month === m);
+          const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity) : null;
+          const revenue = record && record.revenue !== undefined ? record.revenue : null;
+          const intensity = record && record.revenue > 0 && actualEm ? (actualEm.total / record.revenue) : null;
+
+          return {
+            month: m,
+            revenue: revenue,
+            intensity: intensity,
+          };
+        });
+      }, [yearRecords]);
+
+      const renderMetricRow = (label, icon, value, target, unit, factor) => {
+        const isExceeded = value > target;
+        return (
+          <div className="bg-[#FAF9F6] border border-[#1C1A17]/15 p-4 sm:p-5 hover:border-[#1C1A17]/40 shadow-sm">
+            <div className="flex flex-col justify-start items-start gap-1.5 mb-4">
+              <div className="flex items-center gap-2.5 w-full">
+                <div className="p-2 bg-[#1C1A17] text-[#FAF9F6] shrink-0">
+                  {icon}
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[#1C1A17] font-semibold text-[13px] sm:text-sm block whitespace-nowrap">{label}</span>
+                  <span className="text-[10px] text-[#78716C] font-mono block whitespace-nowrap">계수: {factor.toFixed(7)} tCO₂e/{unit}</span>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase border whitespace-nowrap mt-1 ${
+                isExceeded 
+                  ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]' 
+                  : 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
+              }`}>
+                {isExceeded ? '목표 초과' : '목표 달성'}
+              </span>
+            </div>
+
+            <div className="space-y-2 font-mono text-xs mt-3">
+              <div className="flex justify-between items-center text-[#57534E]">
+                <span>실제 사용량:</span>
+                <span className="font-bold text-[#1C1A17]">{value !== undefined ? value.toLocaleString() : '-'} {unit}</span>
+              </div>
+              <div className="flex justify-between items-center text-[#78716C]">
+                <span>기준 목표치:</span>
+                <span>{target.toLocaleString()} {unit}</span>
+              </div>
+              <div className="flex justify-between items-center text-[#57534E] border-t border-[#1C1A17]/10 pt-2 text-[11px]">
+                <span className="font-medium">환산 배출량:</span>
+                <span className="font-bold text-[#1C1A17]">{(value * factor).toFixed(3)} tCO₂e</span>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div className="space-y-8 font-sans">
+          {/* Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-[#1C1A17]/15 p-4 sm:p-5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-[#1C1A17] text-white">
+                <Icon name="dashboard" className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-[#1C1A17] font-display">종합 실적 모니터링 대시보드</h2>
+                <p className="text-[11px] sm:text-xs text-[#57534E]">선택 연월의 탄소 집약도 배출 성과 실적</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-2 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
+              >
+                <option value={2026}>2026년</option>
+                <option value={2025}>2025년</option>
+                <option value={2024}>2024년</option>
+              </select>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-2 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>{i + 1}월</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-5">
+              <h3 className="text-base font-bold text-[#1C1A17] uppercase tracking-wider font-display border-b border-[#FAF9F6] pb-3">
+                {selectedYear}년 {selectedMonth}월 당월 탄소 명세서 (Carbon Statement)
+              </h3>
+
+              {currentMonthRecord ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 font-mono">
+                    <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                      <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">당월 총 배출량</span>
+                      <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).total.toFixed(3)}</span>
+                      <span className="text-xs text-[#57534E] ml-1">t</span>
+                    </div>
+                    <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                      <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 1 (직접)</span>
+                      <span className="text-lg sm:text-xl font-bold text-[#B45309]">{calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).scope1.toFixed(3)}</span>
+                      <span className="text-xs text-[#78716C] ml-0.5">t</span>
+                    </div>
+                    <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10 col-span-2 sm:col-span-1">
+                      <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 2 (간접)</span>
+                      <span className="text-lg sm:text-xl font-bold text-[#1E40AF]">{calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).scope2.toFixed(3)}</span>
+                      <span className="text-xs text-[#78716C] ml-0.5">t</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7]">
+                    <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-[#1C1A17] block">당월 종합 분석 결과</span>
+                      <p className="text-[#57534E] mt-1">
+                        {calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).total > calculateEmissions(currentMonthTarget.diesel, currentMonthTarget.cityGas, currentMonthTarget.electricity).total ? (
+                          <span className="text-[#991B1B] font-semibold">✖ 이번 달 배출량 총합이 기준 목표치를 초과하였습니다. 에너지 효율 조치 및 전력 부하 점검이 강력히 요구됩니다.</span>
+                        ) : (
+                          <span className="text-[#15803D] font-semibold">✔ 축하합니다! 당월 온실가스 종합 실적이 수립된 가이드라인 이하로 철저히 통제되었습니다.</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center bg-[#FAF9F6] border border-dashed border-[#E5E2D9] flex flex-col items-center justify-center space-y-4">
+                  <Icon name="alert" className="w-8 h-8 text-[#78716C]" />
+                  <p className="text-[#1C1A17] font-bold text-sm">{selectedYear}년 {selectedMonth}월 실적 보고서가 아직 입력되지 않았습니다.</p>
+                  <button
+                    onClick={onNavigateToEntry}
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-[#1C1A17] hover:bg-[#2C2A27] text-white text-xs font-bold tracking-wider uppercase transition-all cursor-pointer"
+                  >
+                    <Icon name="plus" className="w-4 h-4" /> 실적 입력 바로가기
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Year Cumulative Card */}
+            <div className="bg-white border border-[#1C1A17]/15 p-6 relative overflow-hidden shadow-sm flex flex-col justify-between">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-[#15803D]" />
+              <div className="space-y-4">
+                <div className="flex flex-col justify-start items-start gap-1.5">
+                  <div className="flex items-center gap-1.5 text-xs text-[#15803D] font-mono font-semibold uppercase tracking-widest">
+                    <Icon name="layers" className="w-3.5 h-3.5" />
+                    Annual Cumulative Target
+                  </div>
+                  <h3 className="text-sm sm:text-base font-bold text-[#1C1A17] whitespace-nowrap">
+                    {selectedYear}년 누적 실적 및 로드맵 매칭률
+                  </h3>
+                </div>
+
+                <div className="space-y-5 py-2">
+                  <div className="flex flex-col justify-start items-start gap-1">
+                    <span className="text-xs text-[#57534E] font-medium whitespace-nowrap">현재 누적 총 배출량 (Scope 1+2)</span>
+                    <div className="font-mono">
+                      <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{annualCumulative.actualTotal.toFixed(3)}</span>
+                      <span className="text-xs text-[#78716C] ml-1">t</span>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar with target marker */}
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-[#57534E]">연간 목표 대비 소진율</span>
+                      <span className="text-[#15803D] font-bold">{annualCumulative.percentOfAnnualTarget.toFixed(2)}%</span>
+                    </div>
+                    <div className="relative h-3 w-full bg-[#EAE6DD] rounded-none border border-[#1C1A17]/10">
+                      <div
+                        style={{ width: `${Math.min(annualCumulative.percentOfAnnualTarget, 100)}%` }}
+                        className="h-full bg-[#15803D] transition-all duration-500"
+                      />
+                      {annualCumulative.activeMonthsCount > 0 && (
+                        <div 
+                          className="absolute top-0 bottom-0 w-0.5 bg-[#B45309]"
+                          title={`현재 개월수 비례 Run-rate 목표선 (${((annualCumulative.targetTotalForActiveMonths / annualCumulative.annualTargetTotal) * 100).toFixed(1)}%)`}
+                          style={{ left: `${Math.min((annualCumulative.targetTotalForActiveMonths / annualCumulative.annualTargetTotal) * 100, 99)}%` }}
+                        />
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-[#78716C] font-mono">
+                      <span>0%</span>
+                      {annualCumulative.activeMonthsCount > 0 && (
+                        <span className="text-[#B45309] font-semibold">▲ {annualCumulative.activeMonthsCount}개월 누적 목표선</span>
+                      )}
+                      <span>100% 목표 ({annualCumulative.annualTargetTotal.toFixed(1)} t)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-[#E5E2D9] text-xs text-[#57534E] space-y-3 font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">누적 입력 개월:</span>
+                  <span className="text-[#1C1A17] font-bold">{annualCumulative.activeMonthsCount} / 12 개월</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">누적 Scope 1:</span>
+                  <span className="text-[#1C1A17] font-bold">{annualCumulative.actualScope1.toFixed(3)} t</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">누적 Scope 2:</span>
+                  <span className="text-[#1C1A17] font-bold">{annualCumulative.actualScope2.toFixed(3)} t</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-[#78716C] border-t border-[#E5E2D9]/80 pt-2.5">
+                  <span className="flex items-center gap-1">
+                    <Icon name="info" className="w-3 h-3" />
+                    수도 배출량 (S3 감축제외):
+                  </span>
+                  <span className="font-semibold">{annualCumulative.actualWater.toFixed(3)} t</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Details & Live calculations */}
+          {currentMonthRecord && (
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-[#1C1A17] tracking-widest uppercase font-mono flex items-center gap-2">
+                <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
+                에너지 자원별 세부 KPI 분석 및 누출 관리
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, currentMonthRecord.diesel, currentMonthTarget.diesel, 'L', EMISSION_FACTORS.diesel)}
+                {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, currentMonthRecord.cityGas, currentMonthTarget.cityGas, 'Nm³', EMISSION_FACTORS.cityGas)}
+                {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, currentMonthRecord.electricity, currentMonthTarget.electricity, 'kWh', EMISSION_FACTORS.electricity)}
+                {renderMetricRow('용수/수도 (전사제외)', <Icon name="droplet" className="w-4 h-4" />, currentMonthRecord.water, currentMonthTarget.water, 'TON', EMISSION_FACTORS.water)}
+              </div>
+            </div>
+          )}
+
+          {/* Graphical Trends */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+              <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
+                <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
+                {selectedYear}년 월별 목표 대비 실제 총 온실가스 배출량 추이
+              </h3>
+              <MonthlyEmissionsChart data={chartData1} />
+              <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 justify-center">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#B45309]" />실제 Scope 1</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#1E40AF]" />실제 Scope 2</span>
+                <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 border-t-2 border-[#991B1B]" />목표 배출량 (t)</span>
+              </div>
+            </div>
+
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+              <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
+                <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
+                {selectedYear}년 월별 매출액 대비 배출량(원단위) 추이
+              </h3>
+              <RevenueIntensityChart data={chartData2} />
+              <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 justify-center">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#EAE6DD]" />월별 매출액 (억원)</span>
+                <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 border-t-2 border-[#15803D]" />배출 원단위 (tCO₂e/억원)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Raw Data Table Section */}
+          <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#FAF9F6]">
+              <div>
+                <h3 className="text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display">
+                  <Icon name="database" className="w-4 h-4 text-[#1C1A17]" />
+                  {selectedYear}년 월별 로우데이터(Raw Data) 세부 이력
+                </h3>
+                <p className="text-xs text-[#57534E] mt-0.5">
+                  선택한 연도의 1월부터 12월까지 입력된 실제 원본 사용량 데이터와 계산된 탄소배출량 및 매출 원단위 정보를 한눈에 확인할 수 있습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-[#1C1A17]/10 w-full max-w-full">
+              <table className="w-full text-left border-collapse table-auto">
+                <thead>
+                  <tr className="bg-[#FAF9F6] border-b border-[#1C1A17]/15 text-[10px] sm:text-[11px] font-bold text-[#57534E] uppercase tracking-wider font-mono">
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">작업년월</th>
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right whitespace-nowrap">경유 (L)</th>
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right whitespace-nowrap">도시가스 (Nm³)</th>
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right whitespace-nowrap">구매전력 (kWh)</th>
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right whitespace-nowrap">상수도 (TON)</th>
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right whitespace-nowrap">매출액 (억원)</th>
+                    <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right whitespace-nowrap">총 배출량 (tCO₂e)</th>
+                    <th className="py-2.5 px-2 sm:px-3 text-right whitespace-nowrap">원단위 (t/억원)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1C1A17]/10 text-[10px] sm:text-xs text-[#1C1A17]">
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const monthNum = i + 1;
+                    const record = yearRecords.find(r => r.month === monthNum);
+                    const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity) : null;
+                    const intensity = record && record.revenue > 0 && actualEm ? (actualEm.total / record.revenue) : null;
+
+                    return (
+                      <tr key={monthNum} className="hover:bg-[#FAF9F6] transition-colors bg-white">
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-bold whitespace-nowrap">
+                          {selectedYear}년 {monthNum}월
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                          {record ? record.diesel.toLocaleString() : '-'}
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                          {record ? record.cityGas.toLocaleString() : '-'}
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                          {record ? record.electricity.toLocaleString() : '-'}
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                          {record ? record.water.toLocaleString() : '-'}
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                          {record && record.revenue !== null && record.revenue !== undefined ? record.revenue.toLocaleString() : '-'}
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono font-bold text-[#1E40AF]">
+                          {actualEm ? actualEm.total.toFixed(3) : '-'}
+                        </td>
+                        <td className="py-2 px-2 sm:px-3 text-right font-mono font-bold text-[#15803D]">
+                          {intensity !== null ? intensity.toFixed(3) : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+
+    // --- DATA ENTRY COMPONENT ---
+    const DataEntry = ({ records, onSaveRecord, onDeleteRecord }) => {
+      const [year, setYear] = useState(2026);
+      const [month, setMonth] = useState(6);
+      const [diesel, setDiesel] = useState('');
+      const [cityGas, setCityGas] = useState('');
+      const [electricity, setElectricity] = useState('');
+      const [water, setWater] = useState('');
+      const [revenue, setRevenue] = useState('');
+
+      const [isEditing, setIsEditing] = useState(false);
+      const [errorMessage, setErrorMessage] = useState('');
+      const [successMessage, setSuccessMessage] = useState('');
+
+      useEffect(() => {
+        const existing = records.find(r => r.year === year && r.month === month);
+        if (existing) {
+          setDiesel(existing.diesel.toString());
+          setCityGas(existing.cityGas.toString());
+          setElectricity(existing.electricity.toString());
+          setWater(existing.water.toString());
+          setRevenue(existing.revenue !== undefined ? existing.revenue.toString() : '');
+          setIsEditing(true);
+        } else {
+          setDiesel('');
+          setCityGas('');
+          setElectricity('');
+          setWater('');
+          setRevenue('');
+          setIsEditing(false);
+        }
+        setErrorMessage('');
+        setSuccessMessage('');
+      }, [year, month, records]);
+
+      const liveCalculations = useMemo(() => {
+        const dVal = parseFloat(diesel) || 0;
+        const gVal = parseFloat(cityGas) || 0;
+        const eVal = parseFloat(electricity) || 0;
+        const wVal = parseFloat(water) || 0;
+
+        const em = calculateEmissions(dVal, gVal, eVal);
+        return {
+          scope1: em.scope1,
+          scope2: em.scope2,
+          total: em.total,
+          water: wVal * EMISSION_FACTORS.water
+        };
+      }, [diesel, cityGas, electricity, water]);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const dVal = parseFloat(diesel);
+        const gVal = parseFloat(cityGas);
+        const eVal = parseFloat(electricity);
+        const wVal = parseFloat(water);
+        const revVal = parseFloat(revenue);
+
+        if (isNaN(dVal) || dVal < 0 || isNaN(gVal) || gVal < 0 || isNaN(eVal) || eVal < 0 || isNaN(wVal) || wVal < 0 || isNaN(revVal) || revVal < 0) {
+          setErrorMessage('모든 항목에 0 이상의 올바른 숫자를 입력해주세요. (매출액 포함)');
+          return;
+        }
+
+        const newRecord = {
+          id: `${year}-${month.toString().padStart(2, '0')}`,
+          year,
+          month,
+          diesel: dVal,
+          cityGas: gVal,
+          electricity: eVal,
+          water: wVal,
+          revenue: revVal
+        };
+
+        onSaveRecord(newRecord);
+        setSuccessMessage(`${year}년 ${month}월 실적 등록/수정이 완료되었습니다.`);
+        setErrorMessage('');
+        setTimeout(() => setSuccessMessage(''), 4000);
+      };
+
+      const handleClear = () => {
+        setDiesel('');
+        setCityGas('');
+        setElectricity('');
+        setWater('');
+        setRevenue('');
+        setIsEditing(false);
+        setErrorMessage('');
+      };
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1 bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-6">
+            <div>
+              <h3 className="text-lg sm:text-xl font-bold text-[#1C1A17] flex items-center gap-2 font-display">
+                <Icon name="plus" className="w-5 h-5 text-[#1C1A17]" />
+                {isEditing ? '실적 수정하기' : '월별 에너지 실적 입력'}
+              </h3>
+              <p className="text-xs text-[#57534E] mt-1.5 leading-relaxed">
+                연도와 월을 선택하고 경유, 도시가스, 전력, 수도 사용량과 매출액을 입력하십시오.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] sm:text-[11px] text-[#78716C] font-semibold uppercase block">작업 연도</label>
+                  <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-2 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]">
+                    <option value={2026}>2026년</option>
+                    <option value={2025}>2025년</option>
+                    <option value={2024}>2024년</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] sm:text-[11px] text-[#78716C] font-semibold uppercase block">작업 월</label>
+                  <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-2 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]">
+                    {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}월</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-[#1C1A17] font-bold flex items-center gap-1.5">
+                  <Icon name="flame" className="w-3.5 h-3.5 text-amber-600" /> 경유 사용량 (Diesel)
+                </label>
+                <div className="relative">
+                  <input type="number" step="any" required placeholder="예: 450" value={diesel} onChange={(e) => setDiesel(e.target.value)} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] pl-3 pr-12 py-2 text-xs sm:text-sm font-mono focus:outline-none focus:border-[#1C1A17]" />
+                  <span className="absolute right-3 top-2.5 text-[11px] text-[#78716C] font-mono">L</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-[#1C1A17] font-bold flex items-center gap-1.5">
+                  <Icon name="flame" className="w-3.5 h-3.5 text-teal-700" /> 도시가스 사용량 (Gas)
+                </label>
+                <div className="relative">
+                  <input type="number" step="any" required placeholder="예: 2500" value={cityGas} onChange={(e) => setCityGas(e.target.value)} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] pl-3 pr-12 py-2 text-xs sm:text-sm font-mono focus:outline-none focus:border-[#1C1A17]" />
+                  <span className="absolute right-3 top-2.5 text-[11px] text-[#78716C] font-mono">Nm³</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-[#1C1A17] font-bold flex items-center gap-1.5">
+                  <Icon name="zap" className="w-3.5 h-3.5 text-blue-700" /> 구매전력 사용량 (Electricity)
+                </label>
+                <div className="relative">
+                  <input type="number" step="any" required placeholder="예: 85000" value={electricity} onChange={(e) => setElectricity(e.target.value)} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] pl-3 pr-14 py-2 text-xs sm:text-sm font-mono focus:outline-none focus:border-[#1C1A17]" />
+                  <span className="absolute right-3 top-2.5 text-[11px] text-[#78716C] font-mono">kWh</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-[#1C1A17] font-bold flex items-center gap-1.5">
+                  <Icon name="droplet" className="w-3.5 h-3.5 text-teal-600" /> 수도 사용량 (Water)
+                </label>
+                <div className="relative">
+                  <input type="number" step="any" required placeholder="예: 250" value={water} onChange={(e) => setWater(e.target.value)} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] pl-3 pr-14 py-2 text-xs sm:text-sm font-mono focus:outline-none focus:border-[#1C1A17]" />
+                  <span className="absolute right-3 top-2.5 text-[11px] text-[#78716C] font-mono">TON</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-[#1C1A17] font-bold flex items-center gap-1.5">
+                  <Icon name="coins" className="w-3.5 h-3.5 text-amber-600" /> 월별 매출액 (Revenue)
+                </label>
+                <div className="relative">
+                  <input type="number" step="any" required placeholder="예: 120" value={revenue} onChange={(e) => setRevenue(e.target.value)} className="w-full bg-[#FAF9F6] border border-[#E5E2D9] pl-3 pr-16 py-2 text-xs sm:text-sm font-mono focus:outline-none focus:border-[#1C1A17]" />
+                  <span className="absolute right-3 top-2.5 text-[11px] text-[#78716C] font-mono">억원</span>
+                </div>
+              </div>
+
+              {errorMessage && <p className="text-xs text-red-600 font-semibold">{errorMessage}</p>}
+              {successMessage && <p className="text-xs text-green-700 font-semibold">{successMessage}</p>}
+
+              <div className="flex gap-2.5 pt-2">
+                <button type="button" onClick={handleClear} className="flex-1 py-2 text-xs font-bold border border-[#1C1A17]/30 hover:bg-[#F2EFE9] transition-all cursor-pointer">초기화</button>
+                <button type="submit" className="flex-[2] py-2 bg-[#1C1A17] text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer">{isEditing ? '실적 수정하기' : '실적 등록하기'}</button>
+              </div>
+            </form>
+          </div>
+
+          {/* Right Column: Live Calculations & History */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+              <h4 className="text-xs font-bold tracking-widest uppercase font-mono text-[#57534E] mb-4">입력값 기반 실시간 계산 피드백</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+                <div className="bg-[#FAF9F6] p-3 border">
+                  <span className="text-[#78716C] block text-[10px]">Scope 1 (직접)</span>
+                  <span className="font-bold text-[#1C1A17]">{liveCalculations.scope1.toFixed(3)} t</span>
+                </div>
+                <div className="bg-[#FAF9F6] p-3 border">
+                  <span className="text-[#78716C] block text-[10px]">Scope 2 (간접)</span>
+                  <span className="font-bold text-[#1C1A17]">{liveCalculations.scope2.toFixed(3)} t</span>
+                </div>
+                <div className="bg-[#FAF9F6] p-3 border">
+                  <span className="text-[#78716C] block text-[10px]">총 온실가스 합계</span>
+                  <span className="font-bold text-[#1E40AF]">{liveCalculations.total.toFixed(3)} t</span>
+                </div>
+                <div className="bg-[#FAF9F6] p-3 border">
+                  <span className="text-[#78716C] block text-[10px]">상수도 환산 탄소</span>
+                  <span className="font-bold text-[#78716C]">{liveCalculations.water.toFixed(3)} t</span>
+                </div>
+              </div>
+            </div>
+
+            {/* List Table */}
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+              <h4 className="text-xs font-bold tracking-widest uppercase font-mono text-[#57534E] mb-4">현재까지 입력된 온실가스 이력록</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#1C1A17]/15 text-[#57534E] uppercase font-mono">
+                      <th className="py-2.5">연월구분</th>
+                      <th className="py-2.5 text-right">경유/가스</th>
+                      <th className="py-2.5 text-right">전력/상수도</th>
+                      <th className="py-2.5 text-right">매출액</th>
+                      <th className="py-2.5 text-right">총 배출량</th>
+                      <th className="py-2.5 text-right">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E2D9] font-mono text-[#1C1A17]">
+                    {records.length > 0 ? (
+                      records.slice().sort((a,b) => b.id.localeCompare(a.id)).map(r => {
+                        const em = calculateEmissions(r.diesel, r.cityGas, r.electricity);
+                        return (
+                          <tr key={r.id} className="hover:bg-[#FAF9F6] transition-colors">
+                            <td className="py-3 font-bold">{r.year}년 {r.month}월</td>
+                            <td className="py-3 text-right text-[#78716C]">{r.diesel} L / {r.cityGas} m³</td>
+                            <td className="py-3 text-right text-[#78716C]">{r.electricity} kWh / {r.water} t</td>
+                            <td className="py-3 text-right font-bold">{r.revenue !== undefined ? `${r.revenue}억` : '-'}</td>
+                            <td className="py-3 text-right font-bold text-[#1E40AF]">{em.total.toFixed(3)} t</td>
+                            <td className="py-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button onClick={() => { setYear(r.year); setMonth(r.month); }} className="p-1 text-slate-700 hover:bg-slate-200" title="수정"><Icon name="edit" className="w-4 h-4" /></button>
+                                <button onClick={() => onDeleteRecord(r.id)} className="p-1 text-red-600 hover:bg-red-50" title="삭제"><Icon name="trash" className="w-4 h-4" /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr><td colSpan="6" className="py-8 text-center text-[#78716C]">입력된 데이터가 존재하지 않습니다.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+
+    // --- ROADMAP COMPONENT ---
+    const Roadmap = ({ records }) => {
+      const [solarRate, setSolarRate] = useState(0);
+      const [burnerEfficiency, setBurnerEfficiency] = useState(0);
+      const [evTransition, setEvTransition] = useState(0);
+
+      const actualAnnualEmissions = useMemo(() => {
+        const sums = {};
+        records.forEach(r => {
+          const em = calculateEmissions(r.diesel, r.cityGas, r.electricity);
+          if (!sums[r.year]) sums[r.year] = { total: 0, months: 0 };
+          sums[r.year].total += em.total;
+          sums[r.year].months++;
+        });
+
+        return Object.keys(sums).map(yrStr => {
+          const yr = parseInt(yrStr);
+          const data = sums[yr];
+          let total = data.total;
+          const isExtrapolated = data.months < 12;
+          if (isExtrapolated && data.months > 0) {
+            total = (data.total / data.months) * 12;
+          }
+          return { year: yr, actual: parseFloat(total.toFixed(3)), monthsCount: data.months, isExtrapolated };
+        });
+      }, [records]);
+
+      const simulatedData = useMemo(() => {
+        const baseScope1Gas = 80.0;
+        const baseScope1Diesel = 12.720;
+        const baseScope2Elec = 486.396;
+
+        const s2Reduction = baseScope2Elec * (solarRate / 100) * 0.45;
+        const simScope2 = baseScope2Elec - s2Reduction;
+
+        const gasReduction = baseScope1Gas * (burnerEfficiency / 100) * 0.25;
+        const simScope1Gas = baseScope1Gas - gasReduction;
+
+        const dieselReduction = baseScope1Diesel * (evTransition / 100) * 0.80;
+        const simScope1Diesel = baseScope1Diesel - dieselReduction;
+
+        const evElecAddition = baseScope1Diesel * (evTransition / 100) * 0.10;
+
+        return {
+          scope1: simScope1Gas + simScope1Diesel,
+          scope2: simScope2 + evElecAddition,
+          total: simScope1Gas + simScope1Diesel + simScope2 + evElecAddition
+        };
+      }, [solarRate, burnerEfficiency, evTransition]);
+
+      const chartData = useMemo(() => {
+        return ROADMAP_TARGETS.map(targetPoint => {
+          const year = targetPoint.year;
+          const actualPt = actualAnnualEmissions.find(a => a.year === year);
+          let projectionValue = null;
+
+          if (year === 2025) {
+            projectionValue = 579.116;
+          } else if (year === 2026) {
+            projectionValue = parseFloat((579.116 - (579.116 - simulatedData.total) * 0.2).toFixed(3));
+          } else {
+            const factor = (year - 2026) / 4;
+            projectionValue = parseFloat((579.116 - (579.116 - simulatedData.total) * factor).toFixed(3));
+          }
+
+          return {
+            year: `${year}년`,
+            target: targetPoint.target,
+            actual: actualPt ? actualPt.actual : null,
+            sim: projectionValue
+          };
+        });
+      }, [actualAnnualEmissions, simulatedData]);
+
+      const isGoalMetIn2030 = simulatedData.total <= 470.756;
+
+      return (
+        <div className="space-y-8 font-sans">
+          <div className="bg-[#F2EFE9] p-5 border border-[#E5E2D9] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-[#1C1A17] text-[#FAF9F6]">
+                <Icon name="compass" className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-[#1C1A17] tracking-tight font-display">대성스틸 2030 저탄소 중기 로드맵 & 감축 시뮬레이터</h2>
+                <p className="text-xs text-[#57534E] mt-0.5">환경부 2030 온실가스 감축 목표(NDC) 경로 추종 여부 판단 및 가상 에너지 효율화 시뮬레이션</p>
+              </div>
+            </div>
+            <span className="text-xs bg-white px-3 py-1.5 text-[#1C1A17] font-mono border border-[#E5E2D9] font-bold">기준 연도: 2025년 (579.116 t)</span>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="xl:col-span-2 bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#FAF9F6]">
+                <div>
+                  <h3 className="text-base font-bold text-[#1C1A17] uppercase tracking-wider font-display">중기 탄소 저감 가이드라인 vs 실적 모니터링</h3>
+                  <p className="text-xs text-[#57534E] mt-0.5">실선은 연간 타겟이며, 점선은 자발적 설비 개선 적용 시 시뮬레이션 감축 경로입니다.</p>
+                </div>
+                <div className="flex flex-wrap gap-4 text-[10px] font-mono">
+                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-0.5 bg-[#991B1B]" />감축 목표선</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3.5 h-0.5 bg-[#166534] border-t border-dashed" />시뮬레이션 경로</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-[#1E40AF]" />실제 실적 (연환산)</span>
+                </div>
+              </div>
+
+              <RoadmapSimulatorChart data={chartData} />
+
+              <div className="bg-[#FCFAF7] p-4 border border-[#E5E2D9] text-xs text-[#57534E] leading-relaxed flex items-start gap-2.5">
+                <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-[#1C1A17] block">연환산 가중치 적용 안내 (Extrapolation)</span>
+                  <p className="text-[11px] text-[#57534E] mt-1">
+                    아직 12개월 전체가 채워지지 않은 당해 연도의 실제 배출량 포인트는, 1년 환산치로 보정되어 비교 가능하도록 제공됩니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Levers panel */}
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Icon name="edit" className="w-5 h-5 text-[#1C1A17]" />
+                  <h3 className="text-sm font-bold text-[#1C1A17] uppercase tracking-widest font-mono">저탄소 설비 시뮬레이션 레버</h3>
+                </div>
+                <p className="text-xs text-[#57534E] leading-relaxed">미래 저감 기술 도입률을 조정하여 2030년 목표 달성 가능 시나리오를 설계하십시오.</p>
+                <hr className="border-[#FAF9F6]" />
+
+                {/* Slider 1 */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#1C1A17] font-bold flex items-center gap-1.5"><Icon name="zap" className="w-3.5 h-3.5 text-amber-600" /> 자가 태양광 발전 (RE100)</span>
+                    <span className="text-[#B45309] font-mono font-bold">{solarRate}% 도입</span>
+                  </div>
+                  <input type="range" min="0" max="100" step="5" value={solarRate} onChange={(e) => setSolarRate(Number(e.target.value))} className="w-full h-1.5 bg-[#EAE6DD] appearance-none cursor-pointer accent-[#1C1A17]" />
+                  <span className="text-[10px] text-[#78716C] block">구매전력 최대 45% 대체</span>
+                </div>
+
+                {/* Slider 2 */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#1C1A17] font-bold flex items-center gap-1.5"><Icon name="flame" className="w-3.5 h-3.5 text-amber-600" /> 가스 연소설비 효율화 개조</span>
+                    <span className="text-[#B45309] font-mono font-bold">{burnerEfficiency}% 개조</span>
+                  </div>
+                  <input type="range" min="0" max="100" step="5" value={burnerEfficiency} onChange={(e) => setBurnerEfficiency(Number(e.target.value))} className="w-full h-1.5 bg-[#EAE6DD] appearance-none cursor-pointer accent-[#1C1A17]" />
+                  <span className="text-[10px] text-[#78716C] block">가스 사용량 최대 25% 감축</span>
+                </div>
+
+                {/* Slider 3 */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#1C1A17] font-bold flex items-center gap-1.5"><Icon name="droplet" className="w-3.5 h-3.5 text-teal-600" /> 전사 차량 및 설비 전기화 (EV)</span>
+                    <span className="text-[#15803D] font-mono font-bold">{evTransition}% 전환</span>
+                  </div>
+                  <input type="range" min="0" max="100" step="5" value={evTransition} onChange={(e) => setEvTransition(Number(e.target.value))} className="w-full h-1.5 bg-[#EAE6DD] appearance-none cursor-pointer accent-[#1C1A17]" />
+                  <span className="text-[10px] text-[#78716C] block">경유 최대 80% 절감</span>
+                </div>
+              </div>
+
+              {/* Outcome */}
+              <div className={`p-4 border rounded-none ${isGoalMetIn2030 ? 'bg-[#F0FDF4] border-[#86EFAC] text-[#166534]' : 'bg-[#FEF2F2] border-[#FCA5A5] text-[#991B1B]'}`}>
+                <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-widest mb-2.5 font-mono">
+                  <span>2030년 감축 예측 시나리오 결과</span>
+                </div>
+                <div className="space-y-2 text-xs font-mono">
+                  <div className="flex justify-between border-b border-[#1C1A17]/5 pb-1">
+                    <span className="text-[#78716C]">예측 배출량 (2030):</span>
+                    <span className="font-bold text-[#1C1A17]">{simulatedData.total.toFixed(3)} t</span>
+                  </div>
+                  <div className="flex justify-between border-b border-[#1C1A17]/5 pb-1">
+                    <span className="text-[#78716C]">국가 감축 목표치 (2030):</span>
+                    <span className="text-[#78716C]">470.756 t</span>
+                  </div>
+                  <div className="border-t border-[#1C1A17]/10 my-2 pt-2 flex justify-between items-center text-xs sm:text-sm">
+                    <span className="font-bold">목표 달성 여부:</span>
+                    <span className={`font-bold px-2 py-0.5 border text-xs ${isGoalMetIn2030 ? 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]' : 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'}`}>
+                      {isGoalMetIn2030 ? '목표 달성 성공' : '감축 역량 부족'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-[#1C1A17] uppercase tracking-widest font-mono flex items-center gap-2">
+              <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" /> 대성스틸 연도별 온실가스 저감 국가 제출용 표준 로드맵 타겟 테이블
+            </h3>
+            <div className="overflow-x-auto border border-[#E5E2D9] bg-[#FCFAF7]">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-[#F2EFE9] border-b border-[#E5E2D9] text-[#57534E] uppercase font-mono tracking-wider font-semibold">
+                    <th className="p-3">연도 구분</th>
+                    <th className="p-3">배출 목표총량 (tCO₂e)</th>
+                    <th className="p-3">Scope 1 (직접) 목표</th>
+                    <th className="p-3">Scope 2 (간접) 목표</th>
+                    <th className="p-3">연간 누적 감축 비율</th>
+                    <th className="p-3 text-right">상태 구분</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E2D9] font-mono text-[#1C1A17]">
+                  {ROADMAP_TARGETS.map((r, idx) => {
+                    const reductionPercent = idx === 0 ? 0 : ((579.116 - r.target) / 579.116) * 100;
+                    return (
+                      <tr key={r.year} className="hover:bg-white transition-colors">
+                        <td className="p-3 font-bold">{r.label} ({r.year}년)</td>
+                        <td className="p-3 font-bold">{r.target.toFixed(3)} t</td>
+                        <td className="p-3 text-[#57534E]">{r.scope1 ? `${r.scope1.toFixed(3)} t` : '탄력적 분배'}</td>
+                        <td className="p-3 text-[#57534E]">{r.scope2 ? `${r.scope2.toFixed(3)} t` : '탄력적 분배'}</td>
+                        <td className="p-3">
+                          <span className={idx === 0 ? 'text-[#78716C]' : 'text-[#166534] font-bold'}>
+                            {idx === 0 ? '기준년도' : `▼ ${reductionPercent.toFixed(2)}%`}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          {idx === 0 ? (
+                            <span className="px-2 py-0.5 text-[9px] bg-slate-100 text-slate-700 border uppercase font-bold">Baseline</span>
+                          ) : idx === 1 ? (
+                            <span className="px-2 py-0.5 text-[9px] bg-amber-100 text-amber-700 border border-amber-300 uppercase font-bold">당해 실행 중</span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[9px] bg-slate-100 text-slate-700 border uppercase font-bold">예정 목표</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+
+    // --- APP CONTAINER COMPONENT ---
+    const LOCAL_STORAGE_KEY = 'daesung_steel_ghg_records';
+    const SEED_RECORDS = [
+      { id: "2026-01", year: 2026, month: 1, diesel: 95, cityGas: 7400, electricity: 92000, water: 260, revenue: 120 },
+      { id: "2026-02", year: 2026, month: 2, diesel: 540, cityGas: 9300, electricity: 96000, water: 410, revenue: 115 },
+      { id: "2026-03", year: 2026, month: 3, diesel: 420, cityGas: 8900, electricity: 87000, water: 380, revenue: 130 },
+      { id: "2026-04", year: 2026, month: 4, diesel: 710, cityGas: 6100, electricity: 84500, water: 370, revenue: 125 },
+      { id: "2026-05", year: 2026, month: 5, diesel: 430, cityGas: 1800, electricity: 67000, water: 230, revenue: 140 },
+      { id: "2026-06", year: 2026, month: 6, diesel: 490, cityGas: 950, electricity: 71200, water: 220, revenue: 135 },
+    ];
+
+    function App() {
+      const [records, setRecords] = useState([]);
+      const [activeTab, setActiveTab] = useState('dashboard');
+
+      useEffect(() => {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const sanitized = parsed.map(r => ({
+              ...r,
+              revenue: typeof r.revenue === 'number' && !isNaN(r.revenue) ? r.revenue : 120,
+            }));
+            setRecords(sanitized);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
+          } catch (e) {
+            setRecords(SEED_RECORDS);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(SEED_RECORDS));
+          }
+        } else {
+          setRecords(SEED_RECORDS);
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(SEED_RECORDS));
+        }
+      }, []);
+
+      const handleSaveRecord = (record) => {
+        setRecords(prev => {
+          const idx = prev.findIndex(r => r.id === record.id);
+          let updated;
+          if (idx > -1) {
+            updated = [...prev];
+            updated[idx] = record;
+          } else {
+            updated = [...prev, record];
+          }
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+          return updated;
+        });
+      };
+
+      const handleDeleteRecord = (id) => {
+        if (window.confirm('정말로 이 월별 실적 기록을 삭제하시겠습니까? 관련 탄소 배출 데이터가 영구 삭제됩니다.')) {
+          setRecords(prev => {
+            const updated = prev.filter(r => r.id !== id);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+            return updated;
+          });
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-[#FAF9F6] text-[#1C1A17] flex flex-col font-sans">
+          {/* Top Banner */}
+          <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-2.5 text-center text-xs text-[#E5E2D9] font-mono flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse inline-block" />
+            <span className="tracking-wide">ANNUAL REPORT: 2026년 대성스틸 국가 온실가스 의무 감축 로드맵 준수 실적 평가 가동 중</span>
+          </div>
+
+          {/* Header */}
+          <header className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-[#E5E2D9] px-4 sm:px-6 lg:px-8 py-5">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-[#1C1A17] text-[#FAF9F6] flex items-center justify-center font-bold text-lg">DS</div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold tracking-tight text-[#1C1A17] font-display">(주)대성스틸</h1>
+                    <span className="text-[10px] bg-[#15803D]/10 text-[#15803D] border border-[#15803D]/20 px-2 py-0.5 font-semibold tracking-wider uppercase font-mono">ESG LEADERSHIP</span>
+                  </div>
+                  <p className="text-[11px] text-[#57534E] font-mono uppercase tracking-wider mt-0.5">Greenhouse Gas Management Portal — 2026</p>
+                </div>
+              </div>
+
+              {/* Navigation Tabs */}
+              <nav className="flex bg-[#F2EFE9] p-1 border border-[#E5E2D9] gap-1 text-xs sm:text-sm font-medium">
+                <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'dashboard' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>대시보드</button>
+                <button onClick={() => setActiveTab('entry')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'entry' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>실적 입력</button>
+                <button onClick={() => setActiveTab('roadmap')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'roadmap' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>로드맵 시뮬레이터</button>
+              </nav>
+            </div>
+          </header>
+
+          {/* Main content */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {activeTab === 'dashboard' && <Dashboard records={records} onNavigateToEntry={() => setActiveTab('entry')} />}
+            {activeTab === 'entry' && <DataEntry records={records} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} />}
+            {activeTab === 'roadmap' && <Roadmap records={records} />}
+          </main>
+
+          {/* Footer */}
+          <footer className="bg-[#F5F2EB] border-t border-[#E5E2D9] py-8 px-4 text-center text-xs text-[#57534E] font-mono mt-12">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+              <p>✔ 본 시스템은 대한민국 환경부 온실가스 배출 계수 검증 표준에 따라 완벽하게 준수 제작되었습니다.</p>
+              <p>© 2026 (주)대성스틸 ESG 탄소 관리국. All rights reserved.</p>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>
