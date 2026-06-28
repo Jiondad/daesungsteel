@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>(주)대성스틸 온실가스 관리 시스템</title>
+  <title>(주)대성스틸 온실가스 인벤토리 시스템</title>
   <!-- Noto Sans KR & JetBrains Mono Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <!-- Tailwind CSS Play CDN -->
@@ -342,81 +342,161 @@
     // --- MAIN DASHBOARD COMPONENT ---
     const Dashboard = ({ records, onNavigateToEntry }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
-      const [selectedMonth, setSelectedMonth] = useState(6);
+      const [fromMonth, setFromMonth] = useState(1);
+      const [toMonth, setToMonth] = useState(6);
+
+      const handleFromMonthChange = (e) => {
+        const val = Number(e.target.value);
+        setFromMonth(val);
+        if (val > toMonth) {
+          setToMonth(val);
+        }
+      };
+
+      const handleToMonthChange = (e) => {
+        const val = Number(e.target.value);
+        if (val < fromMonth) {
+          setFromMonth(val);
+        }
+        setToMonth(val);
+      };
 
       const yearRecords = useMemo(() => records.filter(r => r.year === selectedYear), [records, selectedYear]);
-      const currentMonthRecord = useMemo(() => yearRecords.find(r => r.month === selectedMonth), [yearRecords, selectedMonth]);
-      const currentMonthTarget = useMemo(() => TARGETS_2026[selectedMonth - 1] || TARGETS_2026[0], [selectedMonth]);
 
-      // Cumulative calculations
-      const annualCumulative = useMemo(() => {
-        let actualScope1 = 0, actualScope2 = 0, actualTotal = 0, actualWater = 0;
-        let targetTotalForActiveMonths = 0, annualTargetTotal = 0;
+      // Calculate period-specific stats (fromMonth to toMonth)
+      const periodStats = useMemo(() => {
+        let actualDiesel = 0;
+        let actualCityGas = 0;
+        let actualElectricity = 0;
+        let actualWater = 0;
+        let actualRevenue = 0;
+
+        let targetDiesel = 0;
+        let targetCityGas = 0;
+        let targetElectricity = 0;
+        let targetWater = 0;
+
         let activeMonthsCount = 0;
+        const activeMonthsList = [];
 
-        TARGETS_2026.forEach((target, i) => {
-          const em = calculateEmissions(target.diesel, target.cityGas, target.electricity);
-          annualTargetTotal += em.total;
+        for (let m = fromMonth; m <= toMonth; m++) {
+          const target = TARGETS_2026[m - 1] || TARGETS_2026[0];
+          const record = yearRecords.find(r => r.month === m);
 
-          const record = yearRecords.find(r => r.month === (i + 1));
+          // Sum target values for the selected months (to provide period aggregate guideline)
+          targetDiesel += target.diesel || 0;
+          targetCityGas += target.cityGas || 0;
+          targetElectricity += target.electricity || 0;
+          targetWater += target.water || 0;
+
           if (record) {
-            const actualEm = calculateEmissions(record.diesel, record.cityGas, record.electricity);
-            actualScope1 += actualEm.scope1;
-            actualScope2 += actualEm.scope2;
-            actualTotal += actualEm.total;
-            actualWater += record.water * EMISSION_FACTORS.water;
-            targetTotalForActiveMonths += em.total;
+            actualDiesel += record.diesel || 0;
+            actualCityGas += record.cityGas || 0;
+            actualElectricity += record.electricity || 0;
+            actualWater += record.water || 0;
+            actualRevenue += record.revenue || 0;
+
             activeMonthsCount++;
+            activeMonthsList.push(m);
           }
-        });
+        }
+
+        const actualEm = calculateEmissions(actualDiesel, actualCityGas, actualElectricity);
+        const targetEm = calculateEmissions(targetDiesel, targetCityGas, targetElectricity);
 
         return {
-          actualScope1,
-          actualScope2,
-          actualTotal,
+          actualDiesel,
+          actualCityGas,
+          actualElectricity,
           actualWater,
-          targetTotalForActiveMonths,
-          annualTargetTotal,
+          actualRevenue,
+          targetDiesel,
+          targetCityGas,
+          targetElectricity,
+          targetWater,
+          actualScope1: actualEm.scope1,
+          actualScope2: actualEm.scope2,
+          actualTotal: actualEm.total,
+          targetScope1: targetEm.scope1,
+          targetScope2: targetEm.scope2,
+          targetTotal: targetEm.total,
           activeMonthsCount,
-          percentOfAnnualTarget: annualTargetTotal > 0 ? (actualTotal / annualTargetTotal) * 100 : 0,
+          activeMonthsList,
+          intensity: actualRevenue > 0 ? (actualEm.total / actualRevenue) : 0
+        };
+      }, [yearRecords, fromMonth, toMonth]);
+
+      // Yearly stats (1 to 12) for the table footer
+      const yearStats = useMemo(() => {
+        let diesel = 0;
+        let cityGas = 0;
+        let electricity = 0;
+        let water = 0;
+        let revenue = 0;
+        let activeMonths = 0;
+
+        for (let m = 1; m <= 12; m++) {
+          const r = yearRecords.find(rec => rec.month === m);
+          if (r) {
+            diesel += r.diesel || 0;
+            cityGas += r.cityGas || 0;
+            electricity += r.electricity || 0;
+            water += r.water || 0;
+            revenue += r.revenue || 0;
+            activeMonths++;
+          }
+        }
+
+        const em = calculateEmissions(diesel, cityGas, electricity);
+        return {
+          diesel,
+          cityGas,
+          electricity,
+          water,
+          revenue,
+          emissions: em.total,
+          intensity: revenue > 0 ? (em.total / revenue) : 0,
+          activeMonths
         };
       }, [yearRecords]);
 
-      // Primary Mixed Graph Data (12 Months)
+      // Primary Mixed Graph Data (fromMonth to toMonth)
       const chartData1 = useMemo(() => {
-        return Array.from({ length: 12 }, (_, i) => {
-          const m = i + 1;
-          const target = TARGETS_2026[i];
+        const data = [];
+        for (let m = fromMonth; m <= toMonth; m++) {
+          const target = TARGETS_2026[m - 1] || TARGETS_2026[0];
           const record = yearRecords.find(r => r.month === m);
 
           const targetEm = calculateEmissions(target.diesel, target.cityGas, target.electricity);
           const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity) : null;
 
-          return {
+          data.push({
             month: m,
             scope1: actualEm ? actualEm.scope1 : 0,
             scope2: actualEm ? actualEm.scope2 : 0,
             target: targetEm.total,
-          };
-        });
-      }, [yearRecords]);
+          });
+        }
+        return data;
+      }, [yearRecords, fromMonth, toMonth]);
 
-      // Revenue & Intensity Graph Data (12 Months)
+      // Revenue & Intensity Graph Data (fromMonth to toMonth)
       const chartData2 = useMemo(() => {
-        return Array.from({ length: 12 }, (_, i) => {
-          const m = i + 1;
+        const data = [];
+        for (let m = fromMonth; m <= toMonth; m++) {
           const record = yearRecords.find(r => r.month === m);
           const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity) : null;
           const revenue = record && record.revenue !== undefined ? record.revenue : null;
           const intensity = record && record.revenue > 0 && actualEm ? (actualEm.total / record.revenue) : null;
 
-          return {
+          data.push({
             month: m,
             revenue: revenue,
             intensity: intensity,
-          };
-        });
-      }, [yearRecords]);
+          });
+        }
+        return data;
+      }, [yearRecords, fromMonth, toMonth]);
 
       const renderMetricRow = (label, icon, value, target, unit, factor) => {
         const isExceeded = value > target;
@@ -432,19 +512,25 @@
                   <span className="text-[10px] text-[#78716C] font-mono block whitespace-nowrap">계수: {factor.toFixed(7)} tCO₂e/{unit}</span>
                 </div>
               </div>
-              <span className={`px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase border whitespace-nowrap mt-1 ${
-                isExceeded 
-                  ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]' 
-                  : 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
-              }`}>
-                {isExceeded ? '목표 초과' : '목표 달성'}
-              </span>
+              {periodStats.activeMonthsCount > 0 ? (
+                <span className={`px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase border whitespace-nowrap mt-1 ${
+                  isExceeded 
+                    ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]' 
+                    : 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
+                }`}>
+                  {isExceeded ? '목표 초과' : '목표 달성'}
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase border whitespace-nowrap mt-1 bg-gray-100 text-gray-500 border-gray-300">
+                  데이터 없음
+                </span>
+              )}
             </div>
 
             <div className="space-y-2 font-mono text-xs mt-3">
               <div className="flex justify-between items-center text-[#57534E]">
                 <span>실제 사용량:</span>
-                <span className="font-bold text-[#1C1A17]">{value !== undefined ? value.toLocaleString() : '-'} {unit}</span>
+                <span className="font-bold text-[#1C1A17]">{value !== undefined ? value.toLocaleString() : '0'} {unit}</span>
               </div>
               <div className="flex justify-between items-center text-[#78716C]">
                 <span>기준 목표치:</span>
@@ -469,11 +555,11 @@
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-[#1C1A17] font-display">종합 실적 모니터링 대시보드</h2>
-                <p className="text-[11px] sm:text-xs text-[#57534E]">선택 연월의 탄소 집약도 배출 성과 실적</p>
+                <p className="text-[11px] sm:text-xs text-[#57534E]">지정된 시작월 ~ 종료월 기간의 탄소 집약도 배출 성과 실적</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -483,15 +569,30 @@
                 <option value={2025}>2025년</option>
                 <option value={2024}>2024년</option>
               </select>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-2 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
-              >
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i + 1} value={i + 1}>{i + 1}월</option>
-                ))}
-              </select>
+              
+              <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 py-1 text-xs sm:text-sm">
+                <span className="text-[#78716C] font-semibold text-[11px] mr-1 uppercase">시작</span>
+                <select
+                  value={fromMonth}
+                  onChange={handleFromMonthChange}
+                  className="bg-transparent font-mono cursor-pointer focus:outline-none"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}월</option>
+                  ))}
+                </select>
+                <span className="text-[#78716C] px-1 font-semibold">~</span>
+                <span className="text-[#78716C] font-semibold text-[11px] mr-1 uppercase">종료</span>
+                <select
+                  value={toMonth}
+                  onChange={handleToMonthChange}
+                  className="bg-transparent font-mono cursor-pointer focus:outline-none"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}월</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -499,25 +600,25 @@
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-5">
               <h3 className="text-base font-bold text-[#1C1A17] uppercase tracking-wider font-display border-b border-[#FAF9F6] pb-3">
-                {selectedYear}년 {selectedMonth}월 당월 탄소 명세서 (Carbon Statement)
+                {selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서 (Carbon Statement)
               </h3>
 
-              {currentMonthRecord ? (
+              {periodStats.activeMonthsCount > 0 ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 font-mono">
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
-                      <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">당월 총 배출량</span>
-                      <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).total.toFixed(3)}</span>
+                      <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">선택 기간 총 배출량</span>
+                      <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{periodStats.actualTotal.toFixed(3)}</span>
                       <span className="text-xs text-[#57534E] ml-1">t</span>
                     </div>
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                       <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 1 (직접)</span>
-                      <span className="text-lg sm:text-xl font-bold text-[#B45309]">{calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).scope1.toFixed(3)}</span>
+                      <span className="text-lg sm:text-xl font-bold text-[#B45309]">{periodStats.actualScope1.toFixed(3)}</span>
                       <span className="text-xs text-[#78716C] ml-0.5">t</span>
                     </div>
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10 col-span-2 sm:col-span-1">
                       <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 2 (간접)</span>
-                      <span className="text-lg sm:text-xl font-bold text-[#1E40AF]">{calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).scope2.toFixed(3)}</span>
+                      <span className="text-lg sm:text-xl font-bold text-[#1E40AF]">{periodStats.actualScope2.toFixed(3)}</span>
                       <span className="text-xs text-[#78716C] ml-0.5">t</span>
                     </div>
                   </div>
@@ -525,12 +626,12 @@
                   <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7]">
                     <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-[#1C1A17] block">당월 종합 분석 결과</span>
+                      <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
                       <p className="text-[#57534E] mt-1">
-                        {calculateEmissions(currentMonthRecord.diesel, currentMonthRecord.cityGas, currentMonthRecord.electricity).total > calculateEmissions(currentMonthTarget.diesel, currentMonthTarget.cityGas, currentMonthTarget.electricity).total ? (
-                          <span className="text-[#991B1B] font-semibold">✖ 이번 달 배출량 총합이 기준 목표치를 초과하였습니다. 에너지 효율 조치 및 전력 부하 점검이 강력히 요구됩니다.</span>
+                        {periodStats.actualTotal > periodStats.targetTotal ? (
+                          <span className="text-[#991B1B] font-semibold">✖ 선택 기간({fromMonth}월~{toMonth}월)의 배출량 총합({periodStats.actualTotal.toFixed(3)} t)이 기준 목표치({periodStats.targetTotal.toFixed(3)} t)를 초과하였습니다. 효율 조치 및 감축 노력이 강력히 요구됩니다.</span>
                         ) : (
-                          <span className="text-[#15803D] font-semibold">✔ 축하합니다! 당월 온실가스 종합 실적이 수립된 가이드라인 이하로 철저히 통제되었습니다.</span>
+                          <span className="text-[#15803D] font-semibold">✔ 축하합니다! 선택 기간({fromMonth}월~{toMonth}월)의 온실가스 실제 배출 총합({periodStats.actualTotal.toFixed(3)} t)이 목표 가이드라인({periodStats.targetTotal.toFixed(3)} t) 내에서 안정적으로 통제되고 있습니다.</span>
                         )}
                       </p>
                     </div>
@@ -539,7 +640,7 @@
               ) : (
                 <div className="py-12 text-center bg-[#FAF9F6] border border-dashed border-[#E5E2D9] flex flex-col items-center justify-center space-y-4">
                   <Icon name="alert" className="w-8 h-8 text-[#78716C]" />
-                  <p className="text-[#1C1A17] font-bold text-sm">{selectedYear}년 {selectedMonth}월 실적 보고서가 아직 입력되지 않았습니다.</p>
+                  <p className="text-[#1C1A17] font-bold text-sm">{selectedYear}년 {fromMonth}월 ~ {toMonth}월 기간의 실적 보고서가 아직 입력되지 않았습니다.</p>
                   <button
                     onClick={onNavigateToEntry}
                     className="flex items-center gap-1.5 px-5 py-2.5 bg-[#1C1A17] hover:bg-[#2C2A27] text-white text-xs font-bold tracking-wider uppercase transition-all cursor-pointer"
@@ -550,25 +651,23 @@
               )}
             </div>
 
-            {/* Year Cumulative Card */}
+            {/* Period Cumulative Card */}
             <div className="bg-white border border-[#1C1A17]/15 p-6 relative overflow-hidden shadow-sm flex flex-col justify-between">
               <div className="absolute top-0 left-0 w-1.5 h-full bg-[#15803D]" />
               <div className="space-y-4">
-                <div className="flex flex-col justify-start items-start gap-1.5">
-                  <div className="flex items-center gap-1.5 text-xs text-[#15803D] font-mono font-semibold uppercase tracking-widest">
-                    <Icon name="layers" className="w-3.5 h-3.5" />
-                    Annual Cumulative Target
-                  </div>
-                  <h3 className="text-sm sm:text-base font-bold text-[#1C1A17] whitespace-nowrap">
-                    {selectedYear}년 누적 실적 및 로드맵 매칭률
-                  </h3>
+                <div className="flex items-center gap-1.5 text-xs text-[#15803D] font-mono font-semibold uppercase tracking-widest">
+                  <Icon name="layers" className="w-3.5 h-3.5" />
+                  Period Cumulative Target
                 </div>
+                <h3 className="text-sm sm:text-base font-bold text-[#1C1A17] whitespace-nowrap">
+                  {selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 실적 및 매칭률
+                </h3>
 
                 <div className="space-y-5 py-2">
                   <div className="flex flex-col justify-start items-start gap-1">
-                    <span className="text-xs text-[#57534E] font-medium whitespace-nowrap">현재 누적 총 배출량 (Scope 1+2)</span>
+                    <span className="text-xs text-[#57534E] font-medium whitespace-nowrap">지정 기간 누적 총 배출량 (Scope 1+2)</span>
                     <div className="font-mono">
-                      <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{annualCumulative.actualTotal.toFixed(3)}</span>
+                      <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{periodStats.actualTotal.toFixed(3)}</span>
                       <span className="text-xs text-[#78716C] ml-1">t</span>
                     </div>
                   </div>
@@ -576,28 +675,28 @@
                   {/* Progress Bar with target marker */}
                   <div className="space-y-2.5">
                     <div className="flex justify-between text-xs font-mono">
-                      <span className="text-[#57534E]">연간 목표 대비 소진율</span>
-                      <span className="text-[#15803D] font-bold">{annualCumulative.percentOfAnnualTarget.toFixed(2)}%</span>
+                      <span className="text-[#57534E]">지정 기간 목표 소진율</span>
+                      <span className="text-[#15803D] font-bold">{(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0).toFixed(2)}%</span>
                     </div>
                     <div className="relative h-3 w-full bg-[#EAE6DD] rounded-none border border-[#1C1A17]/10">
                       <div
-                        style={{ width: `${Math.min(annualCumulative.percentOfAnnualTarget, 100)}%` }}
+                        style={{ width: `${Math.min(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0, 100)}%` }}
                         className="h-full bg-[#15803D] transition-all duration-500"
                       />
-                      {annualCumulative.activeMonthsCount > 0 && (
+                      {periodStats.activeMonthsCount > 0 && (
                         <div 
                           className="absolute top-0 bottom-0 w-0.5 bg-[#B45309]"
-                          title={`현재 개월수 비례 Run-rate 목표선 (${((annualCumulative.targetTotalForActiveMonths / annualCumulative.annualTargetTotal) * 100).toFixed(1)}%)`}
-                          style={{ left: `${Math.min((annualCumulative.targetTotalForActiveMonths / annualCumulative.annualTargetTotal) * 100, 99)}%` }}
+                          title="선택 기간 목표 기준선"
+                          style={{ left: `100%` }}
                         />
                       )}
                     </div>
                     <div className="flex justify-between text-[10px] text-[#78716C] font-mono">
                       <span>0%</span>
-                      {annualCumulative.activeMonthsCount > 0 && (
-                        <span className="text-[#B45309] font-semibold">▲ {annualCumulative.activeMonthsCount}개월 누적 목표선</span>
+                      {periodStats.activeMonthsCount > 0 && (
+                        <span className="text-[#B45309] font-semibold">▲ 선택 기간 목표 기준선 (100%)</span>
                       )}
-                      <span>100% 목표 ({annualCumulative.annualTargetTotal.toFixed(1)} t)</span>
+                      <span>목표 ({periodStats.targetTotal.toFixed(1)} t)</span>
                     </div>
                   </div>
                 </div>
@@ -605,40 +704,40 @@
 
               <div className="mt-6 pt-4 border-t border-[#E5E2D9] text-xs text-[#57534E] space-y-3 font-mono">
                 <div className="flex justify-between items-center">
-                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">누적 입력 개월:</span>
-                  <span className="text-[#1C1A17] font-bold">{annualCumulative.activeMonthsCount} / 12 개월</span>
+                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">선택 범위 내 입력 완료:</span>
+                  <span className="text-[#1C1A17] font-bold">{periodStats.activeMonthsCount} / {(toMonth - fromMonth + 1)} 개월</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">누적 Scope 1:</span>
-                  <span className="text-[#1C1A17] font-bold">{annualCumulative.actualScope1.toFixed(3)} t</span>
+                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">기간 Scope 1 누계:</span>
+                  <span className="text-[#1C1A17] font-bold">{periodStats.actualScope1.toFixed(3)} t</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">누적 Scope 2:</span>
-                  <span className="text-[#1C1A17] font-bold">{annualCumulative.actualScope2.toFixed(3)} t</span>
+                  <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">기간 Scope 2 누계:</span>
+                  <span className="text-[#1C1A17] font-bold">{periodStats.actualScope2.toFixed(3)} t</span>
                 </div>
                 <div className="flex justify-between items-center text-xs text-[#78716C] border-t border-[#E5E2D9]/80 pt-2.5">
                   <span className="flex items-center gap-1">
                     <Icon name="info" className="w-3 h-3" />
-                    수도 배출량 (S3 감축제외):
+                    상수도 배출량 (S3 감축제외):
                   </span>
-                  <span className="font-semibold">{annualCumulative.actualWater.toFixed(3)} t</span>
+                  <span className="font-semibold">{(periodStats.actualWater * EMISSION_FACTORS.water).toFixed(3)} t</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Details & Live calculations */}
-          {currentMonthRecord && (
+          {periodStats.activeMonthsCount > 0 && (
             <div className="space-y-4">
               <h4 className="text-xs font-bold text-[#1C1A17] tracking-widest uppercase font-mono flex items-center gap-2">
                 <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
-                에너지 자원별 세부 KPI 분석 및 누출 관리
+                에너지 자원별 세부 KPI 분석 및 누출 관리 ({fromMonth}월 ~ {toMonth}월 누적)
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, currentMonthRecord.diesel, currentMonthTarget.diesel, 'L', EMISSION_FACTORS.diesel)}
-                {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, currentMonthRecord.cityGas, currentMonthTarget.cityGas, 'Nm³', EMISSION_FACTORS.cityGas)}
-                {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, currentMonthRecord.electricity, currentMonthTarget.electricity, 'kWh', EMISSION_FACTORS.electricity)}
-                {renderMetricRow('용수/수도 (전사제외)', <Icon name="droplet" className="w-4 h-4" />, currentMonthRecord.water, currentMonthTarget.water, 'TON', EMISSION_FACTORS.water)}
+                {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualDiesel, periodStats.targetDiesel, 'L', EMISSION_FACTORS.diesel)}
+                {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualCityGas, periodStats.targetCityGas, 'Nm³', EMISSION_FACTORS.cityGas)}
+                {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, periodStats.actualElectricity, periodStats.targetElectricity, 'kWh', EMISSION_FACTORS.electricity)}
+                {renderMetricRow('용수/수도 (전사제외)', <Icon name="droplet" className="w-4 h-4" />, periodStats.actualWater, periodStats.targetWater, 'TON', EMISSION_FACTORS.water)}
               </div>
             </div>
           )}
@@ -648,7 +747,7 @@
             <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
               <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
                 <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
-                {selectedYear}년 월별 목표 대비 실제 총 온실가스 배출량 추이
+                {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 목표 대비 실제 총 온실가스 배출량 추이
               </h3>
               <MonthlyEmissionsChart data={chartData1} />
               <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 justify-center">
@@ -661,7 +760,7 @@
             <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
               <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
                 <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
-                {selectedYear}년 월별 매출액 대비 배출량(원단위) 추이
+                {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 매출액 대비 배출량(원단위) 추이
               </h3>
               <RevenueIntensityChart data={chartData2} />
               <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 justify-center">
@@ -680,7 +779,7 @@
                   {selectedYear}년 월별 로우데이터(Raw Data) 세부 이력
                 </h3>
                 <p className="text-xs text-[#57534E] mt-0.5">
-                  선택한 연도의 1월부터 12월까지 입력된 실제 원본 사용량 데이터와 계산된 탄소배출량 및 매출 원단위 정보를 한눈에 확인할 수 있습니다.
+                  선택한 연도의 1월부터 12월까지 입력된 실제 원본 사용량 데이터와 계산된 탄소배출량 및 매출 원단위 정보를 확인할 수 있습니다. (선택된 조회 기간 {fromMonth}월 ~ {toMonth}월은 밝은 배경색으로 강조 표시됩니다.)
                 </p>
               </div>
             </div>
@@ -705,11 +804,12 @@
                     const record = yearRecords.find(r => r.month === monthNum);
                     const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity) : null;
                     const intensity = record && record.revenue > 0 && actualEm ? (actualEm.total / record.revenue) : null;
+                    const isActive = monthNum >= fromMonth && monthNum <= toMonth;
 
                     return (
-                      <tr key={monthNum} className="hover:bg-[#FAF9F6] transition-colors bg-white">
+                      <tr key={monthNum} className={`hover:bg-[#FAF9F6] transition-colors ${isActive ? 'bg-[#FCFAF7] font-medium' : 'bg-white opacity-60'}`}>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-bold whitespace-nowrap">
-                          {selectedYear}년 {monthNum}월
+                          {selectedYear}년 {monthNum}월 {isActive && <span className="ml-1 text-[9px] bg-[#15803D]/10 text-[#15803D] px-1 py-0.5 font-sans font-bold uppercase rounded-sm">선택</span>}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                           {record ? record.diesel.toLocaleString() : '-'}
@@ -735,6 +835,62 @@
                       </tr>
                     );
                   })}
+
+                  {/* 선택 기간 합계 / 평균 */}
+                  <tr className="bg-[#EAE6DD] font-bold text-[#1C1A17] border-t-2 border-[#1C1A17]/30">
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">
+                      선택 기간 합계 / 평균 ({fromMonth}월~{toMonth}월)
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {periodStats.activeMonthsCount > 0 ? periodStats.actualDiesel.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {periodStats.activeMonthsCount > 0 ? periodStats.actualCityGas.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {periodStats.activeMonthsCount > 0 ? periodStats.actualElectricity.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {periodStats.activeMonthsCount > 0 ? periodStats.actualWater.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {periodStats.activeMonthsCount > 0 ? periodStats.actualRevenue.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
+                      {periodStats.activeMonthsCount > 0 ? periodStats.actualTotal.toFixed(3) : '0.000'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 text-right font-mono text-[#15803D]">
+                      {periodStats.activeMonthsCount > 0 && periodStats.intensity > 0 ? periodStats.intensity.toFixed(3) : '-'}
+                    </td>
+                  </tr>
+
+                  {/* 연도계 (1~12월 전체 합계/평균) */}
+                  <tr className="bg-[#F2EFE9] font-bold text-[#1C1A17] border-t border-[#1C1A17]/20">
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">
+                      연도계 (1~12월 전체)
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? yearStats.diesel.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? yearStats.cityGas.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? yearStats.electricity.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? yearStats.water.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? yearStats.revenue.toLocaleString() : '0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
+                      {yearStats.activeMonths > 0 ? yearStats.emissions.toFixed(3) : '0.000'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 text-right font-mono text-[#15803D]">
+                      {yearStats.activeMonths > 0 && yearStats.intensity > 0 ? yearStats.intensity.toFixed(3) : '-'}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
