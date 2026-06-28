@@ -42,6 +42,87 @@
     input[type="range"]::-webkit-slider-thumb {
       background: #1C1A17;
     }
+
+    /* Print-specific style adjustments for A4 Portrait */
+    @media print {
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Noto Sans KR', sans-serif !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      
+      /* Hide elements with print:hidden */
+      .print\:hidden {
+        display: none !important;
+      }
+      
+      /* Display elements with print:block or print:flex */
+      .print\:block {
+        display: block !important;
+      }
+      .print\:flex {
+        display: flex !important;
+      }
+      .print\:grid {
+        display: grid !important;
+      }
+
+      /* Formatting elements specifically for printing layout */
+      main {
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      
+      /* Grid adjustments to fit standard A4 margins */
+      .grid {
+        display: grid !important;
+        gap: 1.5rem !important;
+      }
+      
+      /* Table borders and padding for print */
+      table {
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto !important;
+      }
+      tr {
+        page-break-inside: avoid !important;
+        page-break-after: auto !important;
+      }
+      th, td {
+        padding: 8px 10px !important;
+        border: 1px solid #1C1A17 !important;
+        color: #000000 !important;
+        background-color: transparent !important;
+      }
+      
+      /* Card elements for print */
+      .bg-white, .bg-\[\#FAF9F6\], .bg-\[\#FAF9F6\]\/50 {
+        background-color: #ffffff !important;
+        border-color: #1C1A17 !important;
+      }
+      
+      /* Force high contrast and clean lines */
+      * {
+        text-shadow: none !important;
+        box-shadow: none !important;
+      }
+
+      canvas {
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: 200px !important;
+        page-break-inside: avoid !important;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 15mm 12mm;
+      }
+    }
   </style>
 </head>
 <body class="min-h-screen bg-[#FAF9F6] text-[#1C1A17]">
@@ -94,6 +175,17 @@
       };
     }
 
+    // --- HELPER FOR NUMBER FORMATTING ---
+    const formatVal = (val, decimals = 2) => {
+      if (val === undefined || val === null || isNaN(val)) {
+        return (0).toFixed(decimals);
+      }
+      return Number(Number(val).toFixed(decimals)).toLocaleString(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    };
+
     // --- REUSABLE SVG ICON COMPONENT ---
     const Icon = ({ name, className = "w-4 h-4" }) => {
       const icons = {
@@ -113,7 +205,8 @@
         coins: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6"/><circle cx="18" cy="18" r="4"/><path d="M12 18a6 6 0 0 0-6-6M18 12a4 4 0 0 0-4-4"/></g>,
         layers: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polygon points="2 17 12 22 22 17"/><polygon points="2 12 12 17 22 12"/></g>,
         chevron: <polyline points="9 18 15 12 9 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>,
-        database: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></g>
+        database: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></g>,
+        print: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></g>
       };
       return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className}>
@@ -134,6 +227,16 @@
         }
 
         const ctx = canvasRef.current.getContext('2d');
+
+        // 은은한 그라디언트 생성
+        const scope1Grad = ctx.createLinearGradient(0, 0, 0, 300);
+        scope1Grad.addColorStop(0, '#14B8A6'); // Mint Teal
+        scope1Grad.addColorStop(1, '#0F766E'); // Deep Teal
+
+        const scope2Grad = ctx.createLinearGradient(0, 0, 0, 300);
+        scope2Grad.addColorStop(0, '#60A5FA'); // Light Slate Blue
+        scope2Grad.addColorStop(1, '#1E3A8A'); // Slate Blue / Navy
+
         chartInstance.current = new Chart(ctx, {
           type: 'bar',
           data: {
@@ -142,7 +245,7 @@
               {
                 label: '실제 Scope 1',
                 data: data.map(d => d.scope1),
-                backgroundColor: '#D97706',
+                backgroundColor: scope1Grad,
                 stack: 'actual',
                 borderRadius: 4,
                 order: 2
@@ -150,7 +253,7 @@
               {
                 label: '실제 Scope 2',
                 data: data.map(d => d.scope2),
-                backgroundColor: '#2563EB',
+                backgroundColor: scope2Grad,
                 stack: 'actual',
                 borderRadius: 4,
                 order: 2
@@ -185,7 +288,12 @@
                 bodyFont: { family: 'Noto Sans KR', size: 11 },
                 padding: 10,
                 cornerRadius: 4,
-                displayColors: true
+                displayColors: true,
+                callbacks: {
+                  label: function(context) {
+                    return ` ${context.dataset.label}: ${formatVal(context.raw, 2)} t`;
+                  }
+                }
               }
             },
             scales: {
@@ -239,6 +347,12 @@
         }
 
         const ctx = canvasRef.current.getContext('2d');
+
+        // 매출액 은은한 그라디언트
+        const revGrad = ctx.createLinearGradient(0, 0, 0, 300);
+        revGrad.addColorStop(0, '#F5F5F4'); // warm light gray
+        revGrad.addColorStop(1, '#D6D3D1'); // stone 300
+
         chartInstance.current = new Chart(ctx, {
           type: 'bar',
           data: {
@@ -247,7 +361,7 @@
               {
                 label: '월별 매출액 (억원)',
                 data: data.map(d => d.revenue),
-                backgroundColor: '#EAE6DD',
+                backgroundColor: revGrad,
                 borderRadius: 4,
                 yAxisID: 'y',
                 order: 2
@@ -281,7 +395,15 @@
                 bodyFont: { family: 'Noto Sans KR', size: 11 },
                 padding: 10,
                 cornerRadius: 4,
-                displayColors: true
+                displayColors: true,
+                callbacks: {
+                  label: function(context) {
+                    if (context.datasetIndex === 0) {
+                      return ` ${context.dataset.label}: ${formatVal(context.raw, 2)} 억원`;
+                    }
+                    return ` ${context.dataset.label}: ${formatVal(context.raw, 3)} t/억원`;
+                  }
+                }
               }
             },
             scales: {
@@ -315,7 +437,7 @@
                 ticks: {
                   font: { family: 'JetBrains Mono', size: 11 }
                 },
-                title: { display: true, text: '배출 원단위', font: { family: 'Noto Sans KR', size: 11 } },
+                title: { display: true, text: '배출 원단위 (t/억원)', font: { family: 'Noto Sans KR', size: 11 } },
                 border: { display: false }
               }
             }
@@ -351,12 +473,12 @@
               {
                 label: '감축 목표선',
                 data: data.map(d => d.target),
-                borderColor: '#DC2626',
+                borderColor: '#B91C1C', // 세련된 Deep Red
                 borderWidth: 3,
                 fill: false,
                 tension: 0.15,
                 pointBackgroundColor: '#FFFFFF',
-                pointBorderColor: '#DC2626',
+                pointBorderColor: '#B91C1C',
                 pointBorderWidth: 2.5,
                 pointRadius: 5,
                 pointHoverRadius: 7,
@@ -365,13 +487,13 @@
               {
                 label: '시뮬레이션 경로',
                 data: data.map(d => d.sim),
-                borderColor: '#059669',
+                borderColor: '#0D9488', // 세련된 Deep Teal
                 borderWidth: 2.5,
                 borderDash: [5, 5],
                 fill: false,
                 tension: 0.15,
                 pointBackgroundColor: '#FFFFFF',
-                pointBorderColor: '#059669',
+                pointBorderColor: '#0D9488',
                 pointBorderWidth: 2,
                 pointRadius: 4,
                 pointHoverRadius: 6,
@@ -380,11 +502,11 @@
               {
                 label: '실제 배출량(연환산)',
                 data: data.map(d => d.actual),
-                backgroundColor: '#2563EB',
-                borderColor: '#2563EB',
+                backgroundColor: '#1D4ED8', // 세련된 Deep Blue
+                borderColor: '#1D4ED8',
                 borderWidth: 0,
                 pointBackgroundColor: '#FFFFFF',
-                pointBorderColor: '#2563EB',
+                pointBorderColor: '#1D4ED8',
                 pointBorderWidth: 3,
                 pointRadius: 6,
                 pointHoverRadius: 8,
@@ -405,7 +527,12 @@
                 bodyFont: { family: 'Noto Sans KR', size: 11 },
                 padding: 10,
                 cornerRadius: 4,
-                displayColors: true
+                displayColors: true,
+                callbacks: {
+                  label: function(context) {
+                    return ` ${context.dataset.label}: ${formatVal(context.raw, 2)} t`;
+                  }
+                }
               }
             },
             scales: {
@@ -448,12 +575,90 @@
       return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
     };
 
+    // --- COOPERATIVE ACHIEVEMENT DOUGHNUT CHART ---
+    const AchievementDoughnutChart = ({ actual, target }) => {
+      const canvasRef = useRef(null);
+      const chartInstance = useRef(null);
+
+      useEffect(() => {
+        if (!canvasRef.current) return;
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+        }
+
+        const ctx = canvasRef.current.getContext('2d');
+        const rate = target > 0 ? (actual / target) * 100 : 0;
+
+        // 은은하고 현대적인 그라디언트 설정
+        const donutGrad = ctx.createLinearGradient(0, 0, 0, 150);
+        donutGrad.addColorStop(0, '#10B981'); // Emerald Mint
+        donutGrad.addColorStop(1, '#059669'); // Dark Green Mint
+
+        chartInstance.current = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['소진율', '잔여한도'],
+            datasets: [{
+              data: [Math.min(rate, 100), Math.max(0, 100 - rate)],
+              backgroundColor: [donutGrad, '#EAE6DD'],
+              borderWidth: 0,
+              hoverOffset: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '72%',
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false }
+            }
+          }
+        });
+
+        return () => {
+          if (chartInstance.current) {
+            chartInstance.current.destroy();
+          }
+        };
+      }, [actual, target]);
+
+      const rate = target > 0 ? (actual / target) * 100 : 0;
+
+      return (
+        <div className="relative w-40 h-40 mx-auto">
+          <canvas ref={canvasRef} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+            <span className="text-2xl font-black text-[#1C1A17] font-mono leading-none">{rate.toFixed(1)}%</span>
+            <span className="text-[10px] text-[#78716C] font-bold uppercase tracking-wider mt-1.5">of target</span>
+          </div>
+        </div>
+      );
+    };
+
 
     // --- MAIN DASHBOARD COMPONENT ---
     const Dashboard = ({ records, targets = {}, onNavigateToEntry }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
       const [fromMonth, setFromMonth] = useState(1);
       const [toMonth, setToMonth] = useState(6);
+      const [printDate, setPrintDate] = useState('');
+
+      useEffect(() => {
+        const updateDate = () => {
+          const now = new Date();
+          const yr = now.getFullYear();
+          const mt = String(now.getMonth() + 1).padStart(2, '0');
+          const dy = String(now.getDate()).padStart(2, '0');
+          const hr = String(now.getHours()).padStart(2, '0');
+          const mn = String(now.getMinutes()).padStart(2, '0');
+          const sc = String(now.getSeconds()).padStart(2, '0');
+          setPrintDate(`${yr}-${mt}-${dy} ${hr}:${mn}:${sc}`);
+        };
+        updateDate();
+        window.addEventListener('beforeprint', updateDate);
+        return () => window.removeEventListener('beforeprint', updateDate);
+      }, []);
 
       const yearTargets = useMemo(() => {
         return targets[selectedYear] || TARGETS_2026;
@@ -644,15 +849,15 @@
             <div className="space-y-2 font-mono text-xs mt-3">
               <div className="flex justify-between items-center text-[#57534E]">
                 <span>실제 사용량:</span>
-                <span className="font-bold text-[#1C1A17]">{value !== undefined ? value.toLocaleString() : '0'} {unit}</span>
+                <span className="font-bold text-[#1C1A17]">{value !== undefined ? formatVal(value, 2) : '0.00'} {unit}</span>
               </div>
               <div className="flex justify-between items-center text-[#78716C]">
                 <span>기준 목표치:</span>
-                <span>{target.toLocaleString()} {unit}</span>
+                <span>{formatVal(target, 2)} {unit}</span>
               </div>
               <div className="flex justify-between items-center text-[#57534E] border-t border-[#1C1A17]/10 pt-2 text-[11px]">
                 <span className="font-medium">환산 배출량:</span>
-                <span className="font-bold text-[#1C1A17]">{(value * factor).toFixed(3)} tCO₂e</span>
+                <span className="font-bold text-[#1C1A17]">{formatVal(value * factor, 2)} tCO₂e</span>
               </div>
             </div>
           </div>
@@ -661,8 +866,46 @@
 
       return (
         <div className="space-y-8 font-sans">
+          {/* Print Official Header (Only visible when printing / PDF generation) */}
+          <div className="hidden print:block border-b-4 border-[#1C1A17] pb-5 mb-8">
+            <div className="flex justify-between items-end">
+              <div>
+                <span className="text-[10px] text-[#78716C] font-mono tracking-widest block uppercase font-bold">CONFIDENTIAL — GHG EMISSIONS STANDARD REPORT</span>
+                <h1 className="text-3xl font-extrabold tracking-tight text-[#1C1A17] font-display mt-1">
+                  (주)대성스틸 온실가스 인벤토리 공식 보고서
+                </h1>
+                <p className="text-xs text-[#57534E] font-mono mt-1">
+                  OFFICIAL GREENHOUSE GAS EMISSIONS STATEMENT & INVENTORY RECORD
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="w-14 h-14 bg-[#1C1A17] text-[#FAF9F6] flex items-center justify-center font-bold text-lg ml-auto mb-1">DS</div>
+                <span className="text-[10px] text-[#78716C] font-semibold block">(주)대성스틸 안전환경본부</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4 mt-6 border-t border-[#1C1A17]/20 pt-4 text-[11px] font-sans">
+              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+                <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">보고 연도</span>
+                <strong className="text-[#1C1A17] text-xs font-mono">{selectedYear}년도</strong>
+              </div>
+              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+                <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">설정 조회 기간</span>
+                <strong className="text-[#1C1A17] text-xs font-mono">{fromMonth}월 ~ {toMonth}월 (누적)</strong>
+              </div>
+              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+                <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">검증 검인 표준</span>
+                <strong className="text-[#1C1A17] text-xs">IPCC / 국가 배출 계수 기준</strong>
+              </div>
+              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+                <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">문서 관리 코드</span>
+                <strong className="text-[#1C1A17] text-xs font-mono">DS-GHG-{selectedYear}-{String(fromMonth).padStart(2,'0')}{String(toMonth).padStart(2,'0')}</strong>
+              </div>
+            </div>
+          </div>
+
           {/* Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-[#1C1A17]/15 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-[#1C1A17]/15 p-4 sm:p-5 shadow-sm print:hidden">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-[#1C1A17] text-white">
                 <Icon name="dashboard" className="w-5 h-5" />
@@ -673,18 +916,18 @@
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-2 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
+                className="h-9 bg-[#FAF9F6] border border-[#E5E2D9] px-3 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
               >
                 <option value={2026}>2026년</option>
                 <option value={2025}>2025년</option>
                 <option value={2024}>2024년</option>
               </select>
               
-              <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 py-1 text-xs sm:text-sm">
+              <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 h-9 text-xs sm:text-sm">
                 <span className="text-[#78716C] font-semibold text-[11px] mr-1 uppercase">시작</span>
                 <select
                   value={fromMonth}
@@ -707,6 +950,16 @@
                   ))}
                 </select>
               </div>
+
+              {/* Report Print Button */}
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 h-9 px-3 bg-[#15803D] hover:bg-[#166534] text-white text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm border border-[#15803D]/10 rounded-none shrink-0"
+                title="공식 온실가스 인벤토리 보고서 출력 및 PDF 저장"
+              >
+                <Icon name="print" className="w-3.5 h-3.5" />
+                <span>보고서 출력</span>
+              </button>
             </div>
           </div>
 
@@ -722,31 +975,31 @@
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                       <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">선택 기간 총 배출량</span>
-                      <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{periodStats.actualTotal.toFixed(3)}</span>
+                      <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
                       <span className="text-xs text-[#57534E] ml-1">t</span>
                     </div>
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                       <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 1 (직접)</span>
-                      <span className="text-lg sm:text-xl font-bold text-[#B45309]">{periodStats.actualScope1.toFixed(3)}</span>
+                      <span className="text-lg sm:text-xl font-bold text-[#B45309]">{formatVal(periodStats.actualScope1, 2)}</span>
                       <span className="text-xs text-[#78716C] ml-0.5">t</span>
                     </div>
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                       <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 2 (간접)</span>
-                      <span className="text-lg sm:text-xl font-bold text-[#1E40AF]">{periodStats.actualScope2.toFixed(3)}</span>
+                      <span className="text-lg sm:text-xl font-bold text-[#1E40AF]">{formatVal(periodStats.actualScope2, 2)}</span>
                       <span className="text-xs text-[#78716C] ml-0.5">t</span>
                     </div>
                     <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                       <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">목표 대비 성과</span>
                       <span className={`text-lg sm:text-xl font-bold block ${periodStats.targetTotal - periodStats.actualTotal >= 0 ? 'text-[#15803D]' : 'text-[#991B1B]'}`}>
                         {periodStats.targetTotal - periodStats.actualTotal >= 0 
-                          ? `▼ ${(periodStats.targetTotal - periodStats.actualTotal).toFixed(3)} t` 
-                          : `▲ ${Math.abs(periodStats.targetTotal - periodStats.actualTotal).toFixed(3)} t`
+                          ? `▼ ${formatVal(periodStats.targetTotal - periodStats.actualTotal, 2)} t` 
+                          : `▲ ${formatVal(Math.abs(periodStats.targetTotal - periodStats.actualTotal), 2)} t`
                         }
                       </span>
                       <span className="text-[10px] text-[#57534E] block font-sans font-semibold">
                         {periodStats.targetTotal - periodStats.actualTotal >= 0 
-                          ? `달성률: ${(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0).toFixed(1)}%` 
-                          : `초과율: ${(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0).toFixed(1)}%`
+                          ? `달성률: ${formatVal((periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0), 1)}%` 
+                          : `초과율: ${formatVal((periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0), 1)}%`
                         }
                       </span>
                     </div>
@@ -758,9 +1011,9 @@
                       <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
                       <p className="text-[#57534E] mt-1">
                         {periodStats.actualTotal > periodStats.targetTotal ? (
-                          <span className="text-[#991B1B] font-semibold">✖ 선택 기간({fromMonth}월~{toMonth}월)의 배출량 총합({periodStats.actualTotal.toFixed(3)} t)이 기준 목표치({periodStats.targetTotal.toFixed(3)} t)를 초과하였습니다. 효율 조치 및 감축 노력이 강력히 요구됩니다.</span>
+                          <span className="text-[#991B1B] font-semibold">✖ 선택 기간({fromMonth}월~{toMonth}월)의 배출량 총합({formatVal(periodStats.actualTotal, 2)} t)이 기준 목표치({formatVal(periodStats.targetTotal, 2)} t)를 초과하였습니다. 효율 조치 및 감축 노력이 강력히 요구됩니다.</span>
                         ) : (
-                          <span className="text-[#15803D] font-semibold">✔ 축하합니다! 선택 기간({fromMonth}월~{toMonth}월)의 온실가스 실제 배출 총합({periodStats.actualTotal.toFixed(3)} t)이 목표 가이드라인({periodStats.targetTotal.toFixed(3)} t) 내에서 안정적으로 통제되고 있습니다.</span>
+                          <span className="text-[#15803D] font-semibold">✔ 선택 기간({fromMonth}월~{toMonth}월)의 온실가스 실제 배출 총합({formatVal(periodStats.actualTotal, 2)} t)이 목표 가이드라인({formatVal(periodStats.targetTotal, 2)} t) 내에서 안정적으로 유지 및 통제되고 있습니다.</span>
                         )}
                       </p>
                     </div>
@@ -796,37 +1049,18 @@
                   <div className="flex flex-col justify-start items-start gap-1">
                     <span className="text-xs text-[#57534E] font-medium whitespace-nowrap">지정 기간 누적 총 배출량 (Scope 1+2)</span>
                     <div className="font-mono">
-                      <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{periodStats.actualTotal.toFixed(3)}</span>
+                      <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
                       <span className="text-xs text-[#78716C] ml-1">t</span>
                     </div>
                   </div>
 
-                  {/* Progress Bar with target marker */}
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between text-xs font-mono">
-                      <span className="text-[#57534E]">지정 기간 목표 소진율</span>
-                      <span className="text-[#15803D] font-bold">{(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0).toFixed(2)}%</span>
-                    </div>
-                    <div className="relative h-3 w-full bg-[#EAE6DD] rounded-none border border-[#1C1A17]/10">
-                      <div
-                        style={{ width: `${Math.min(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0, 100)}%` }}
-                        className="h-full bg-[#15803D] transition-all duration-500"
-                      />
-                      {periodStats.activeMonthsCount > 0 && (
-                        <div 
-                          className="absolute top-0 bottom-0 w-0.5 bg-[#B45309]"
-                          title="선택 기간 목표 기준선"
-                          style={{ left: `100%` }}
-                        />
-                      )}
-                    </div>
-                    <div className="flex justify-between text-[10px] text-[#78716C] font-mono">
-                      <span>0%</span>
-                      {periodStats.activeMonthsCount > 0 && (
-                        <span className="text-[#B45309] font-semibold">▲ 선택 기간 목표 기준선 (100%)</span>
-                      )}
-                      <span>목표 ({periodStats.targetTotal.toFixed(1)} t)</span>
-                    </div>
+                  {/* Progress Doughnut Chart with center text */}
+                  <div className="py-2.5">
+                    <AchievementDoughnutChart actual={periodStats.actualTotal} target={periodStats.targetTotal} />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-[#78716C] font-mono border-t border-[#1C1A17]/10 pt-2.5">
+                    <span>지정 기간 목표 누적:</span>
+                    <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.targetTotal, 2)} t</span>
                   </div>
                 </div>
               </div>
@@ -838,11 +1072,11 @@
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">기간 Scope 1 누계:</span>
-                  <span className="text-[#1C1A17] font-bold">{periodStats.actualScope1.toFixed(3)} t</span>
+                  <span className="text-[#1C1A17] font-bold">{formatVal(periodStats.actualScope1, 2)} t</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[#78716C] uppercase text-[10px] tracking-wider font-semibold">기간 Scope 2 누계:</span>
-                  <span className="text-[#1C1A17] font-bold">{periodStats.actualScope2.toFixed(3)} t</span>
+                  <span className="text-[#1C1A17] font-bold">{formatVal(periodStats.actualScope2, 2)} t</span>
                 </div>
                 <div className="flex justify-between items-center text-xs text-[#78716C] border-t border-[#E5E2D9]/80 pt-2.5">
                   <span className="flex items-center gap-1">
@@ -914,7 +1148,17 @@
             </div>
 
             <div className="overflow-x-auto border border-[#1C1A17]/10 w-full max-w-full">
-              <table className="w-full text-left border-collapse table-auto">
+              <table className="w-full text-left border-collapse table-fixed min-w-[800px]">
+                <colgroup>
+                  <col className="w-[14%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[13%]" />
+                </colgroup>
                 <thead>
                   <tr className="bg-[#FAF9F6] border-b border-[#1C1A17]/15 text-[10px] sm:text-[11px] font-bold text-[#57534E] uppercase tracking-wider font-mono">
                     <th className="py-2.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">작업년월</th>
@@ -941,25 +1185,25 @@
                           {selectedYear}년 {monthNum}월 {isActive && <span className="ml-1 text-[9px] bg-[#15803D]/10 text-[#15803D] px-1 py-0.5 font-sans font-bold uppercase rounded-sm">선택</span>}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? record.diesel.toLocaleString() : '-'}
+                          {record ? formatVal(record.diesel, 2) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? record.cityGas.toLocaleString() : '-'}
+                          {record ? formatVal(record.cityGas, 2) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? record.electricity.toLocaleString() : '-'}
+                          {record ? formatVal(record.electricity, 2) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? record.water.toLocaleString() : '-'}
+                          {record ? formatVal(record.water, 2) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record && record.revenue !== null && record.revenue !== undefined ? record.revenue.toLocaleString() : '-'}
+                          {record && record.revenue !== null && record.revenue !== undefined ? formatVal(record.revenue, 2) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono font-bold text-[#1E40AF]">
-                          {actualEm ? actualEm.total.toFixed(3) : '-'}
+                          {actualEm ? formatVal(actualEm.total, 2) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 text-right font-mono font-bold text-[#15803D]">
-                          {intensity !== null ? intensity.toFixed(3) : '-'}
+                          {intensity !== null ? formatVal(intensity, 3) : '-'}
                         </td>
                       </tr>
                     );
@@ -971,25 +1215,25 @@
                       선택 기간 합계 / 평균 ({fromMonth}월~{toMonth}월)
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? periodStats.actualDiesel.toLocaleString() : '0'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualDiesel, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? periodStats.actualCityGas.toLocaleString() : '0'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualCityGas, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? periodStats.actualElectricity.toLocaleString() : '0'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualElectricity, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? periodStats.actualWater.toLocaleString() : '0'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualWater, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? periodStats.actualRevenue.toLocaleString() : '0'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualRevenue, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
-                      {periodStats.activeMonthsCount > 0 ? periodStats.actualTotal.toFixed(3) : '0.000'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualTotal, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 text-right font-mono text-[#15803D]">
-                      {periodStats.activeMonthsCount > 0 && periodStats.intensity > 0 ? periodStats.intensity.toFixed(3) : '-'}
+                      {periodStats.activeMonthsCount > 0 && periodStats.intensity > 0 ? formatVal(periodStats.intensity, 3) : '-'}
                     </td>
                   </tr>
 
@@ -999,29 +1243,73 @@
                       연도계 (1~12월 전체)
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? yearStats.diesel.toLocaleString() : '0'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? yearStats.cityGas.toLocaleString() : '0'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.cityGas, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? yearStats.electricity.toLocaleString() : '0'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.electricity, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? yearStats.water.toLocaleString() : '0'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.water, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? yearStats.revenue.toLocaleString() : '0'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.revenue, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
-                      {yearStats.activeMonths > 0 ? yearStats.emissions.toFixed(3) : '0.000'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.emissions, 2) : '0.00'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 text-right font-mono text-[#15803D]">
-                      {yearStats.activeMonths > 0 && yearStats.intensity > 0 ? yearStats.intensity.toFixed(3) : '-'}
+                      {yearStats.activeMonths > 0 && yearStats.intensity > 0 ? formatVal(yearStats.intensity, 3) : '-'}
                     </td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Print Official Footer with Signatures & Real-time Date Time (Only visible when printing / PDF) */}
+          <div className="hidden print:block mt-10 pt-6 border-t border-dashed border-[#1C1A17] print-avoid-break">
+            <div className="p-4 bg-[#FAF9F6] border border-[#1C1A17]/20 text-xs leading-relaxed space-y-2">
+              <p className="font-bold text-[#1C1A17] flex items-center gap-1.5">
+                ✔ 본 보고서는 (주)대성스틸 온실가스 인벤토리 시스템에 의해 산정된 공식 데이터입니다.
+              </p>
+              <p className="text-[#57534E]">
+                본 온실가스 명세서는 환경부 '온실가스·에너지 목표관리제 운영지침' 및 '온실가스 배출권거래제의 계획기간별 배출량 산정 가이드라인'에 준거하여 산정되었으며, 외부 제3자 검증 및 공식 제출용 증빙 자료로서 법적 실효성 및 신뢰도를 보증합니다.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-8 mt-8 text-xs font-mono">
+              <div className="space-y-3">
+                <div>
+                  <span className="text-[#78716C] inline-block w-20">출력 일시:</span>
+                  <span className="text-[#1C1A17] font-semibold">{printDate}</span>
+                </div>
+                <div>
+                  <span className="text-[#78716C] inline-block w-20">출력 부서:</span>
+                  <span className="text-[#1C1A17] font-semibold">(주)대성스틸 안전환경본부</span>
+                </div>
+                <div>
+                  <span className="text-[#78716C] inline-block w-20">데이터 출처:</span>
+                  <span className="text-[#1C1A17] font-semibold">Daesung Steel GHG Inventory Engine v1.2</span>
+                </div>
+              </div>
+              
+              <div className="flex flex-col justify-end items-end space-y-8 pr-4">
+                <div className="flex items-center gap-8">
+                  <span className="text-[#57534E] font-sans font-semibold">작성 담당자:</span>
+                  <div className="border-b border-[#1C1A17] w-48 text-right pb-1 text-[#78716C] font-sans">
+                    (서명/인)
+                  </div>
+                </div>
+                <div className="flex items-center gap-8">
+                  <span className="text-[#57534E] font-sans font-semibold">환경 관리 책임자:</span>
+                  <div className="border-b border-[#1C1A17] w-48 text-right pb-1 text-[#78716C] font-sans">
+                    (서명/인)
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1828,20 +2116,20 @@
       return (
         <div className="min-h-screen bg-[#FAF9F6] text-[#1C1A17] flex flex-col font-sans">
           {/* Top Banner */}
-          <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-2.5 text-center text-xs text-[#E5E2D9] font-mono flex items-center justify-center gap-2">
+          <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-2.5 text-center text-xs text-[#E5E2D9] font-mono flex items-center justify-center gap-2 print:hidden">
             <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse inline-block" />
             <span className="tracking-wide">ANNUAL REPORT: 2026년 대성스틸 국가 온실가스 의무 감축 로드맵 준수 실적 평가 가동 중</span>
           </div>
 
           {/* Header */}
-          <header className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-[#E5E2D9] px-4 sm:px-6 lg:px-8 py-5">
+          <header className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-[#E5E2D9] px-4 sm:px-6 lg:px-8 py-5 print:hidden">
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 bg-[#1C1A17] text-[#FAF9F6] flex items-center justify-center font-bold text-lg">DS</div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-xl font-bold tracking-tight text-[#1C1A17] font-display">(주)대성스틸 온실가스 인벤토리 시스템</h1>
-                    <span className="text-[10px] bg-[#15803D]/10 text-[#15803D] border border-[#15803D]/20 px-2 py-0.5 font-semibold tracking-wider uppercase font-mono">ESG LEADERSHIP</span>
+                    <span className="text-[10px] bg-[#15803D]/10 text-[#15803D] border border-[#15803D]/20 px-2 py-0.5 font-semibold tracking-wider uppercase font-mono">CARBON INVENTORY</span>
                   </div>
                   <p className="text-[11px] text-[#57534E] font-mono uppercase tracking-wider mt-0.5">Greenhouse Gas Management Portal — 2026</p>
                 </div>
@@ -1866,10 +2154,10 @@
           </main>
 
           {/* Footer */}
-          <footer className="bg-[#F5F2EB] border-t border-[#E5E2D9] py-8 px-4 text-center text-xs text-[#57534E] font-mono mt-12">
+          <footer className="bg-[#F5F2EB] border-t border-[#E5E2D9] py-8 px-4 text-center text-xs text-[#57534E] font-mono mt-12 print:hidden">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
               <p>✔ 본 시스템은 대한민국 환경부 온실가스 배출 계수 검증 표준에 따라 완벽하게 준수 제작되었습니다.</p>
-              <p>© 2026 (주)대성스틸 ESG 탄소 관리국. All rights reserved.</p>
+              <p>© 2026 (주)대성스틸 안전환경본부. All rights reserved.</p>
             </div>
           </footer>
         </div>
