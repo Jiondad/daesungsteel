@@ -1218,19 +1218,19 @@
                           {selectedYear}년 {monthNum}월 {isActive && <span className="ml-1 text-[9px] bg-[#15803D]/10 text-[#15803D] px-1 py-0.5 font-sans font-bold uppercase rounded-sm">선택</span>}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? formatVal(record.diesel, 2) : '-'}
+                          {record ? formatVal(record.diesel, 0) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? formatVal(record.cityGas, 2) : '-'}
+                          {record ? formatVal(record.cityGas, 0) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? formatVal(record.electricity, 2) : '-'}
+                          {record ? formatVal(record.electricity, 0) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record ? formatVal(record.water, 2) : '-'}
+                          {record ? formatVal(record.water, 0) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                          {record && record.revenue !== null && record.revenue !== undefined ? formatVal(record.revenue, 2) : '-'}
+                          {record && record.revenue !== null && record.revenue !== undefined ? formatVal(record.revenue, 0) : '-'}
                         </td>
                         <td className="py-2 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono font-bold text-[#1E40AF]">
                           {actualEm ? formatVal(actualEm.total, 2) : '-'}
@@ -1248,19 +1248,19 @@
                       선택 기간 합계 / 평균 ({fromMonth}월~{toMonth}월)
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualDiesel, 2) : '0.00'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualDiesel, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualCityGas, 2) : '0.00'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualCityGas, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualElectricity, 2) : '0.00'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualElectricity, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualWater, 2) : '0.00'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualWater, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualRevenue, 2) : '0.00'}
+                      {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualRevenue, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
                       {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualTotal, 2) : '0.00'}
@@ -1276,19 +1276,19 @@
                       연도계 (1~12월 전체)
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel, 2) : '0.00'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? formatVal(yearStats.cityGas, 2) : '0.00'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.cityGas, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? formatVal(yearStats.electricity, 2) : '0.00'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.electricity, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? formatVal(yearStats.water, 2) : '0.00'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.water, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
-                      {yearStats.activeMonths > 0 ? formatVal(yearStats.revenue, 2) : '0.00'}
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.revenue, 0) : '0'}
                     </td>
                     <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
                       {yearStats.activeMonths > 0 ? formatVal(yearStats.emissions, 2) : '0.00'}
