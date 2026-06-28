@@ -165,6 +165,21 @@
       { diesel: 1094, cityGas: 3387, electricity: 100981, water: 240 },
     ];
 
+    const DAESUNG_SEASONAL_TARGETS = [
+      { diesel: 36, cityGas: 2764, electricity: 34583, water: 89 },
+      { diesel: 191, cityGas: 3302, electricity: 34136, water: 135 },
+      { diesel: 159, cityGas: 3263, electricity: 32029, water: 128 },
+      { diesel: 249, cityGas: 2154, electricity: 30163, water: 118 },
+      { diesel: 163, cityGas: 670, electricity: 24674, water: 77 },
+      { diesel: 175, cityGas: 339, electricity: 25528, water: 73 },
+      { diesel: 246, cityGas: 193, electricity: 30476, water: 84 },
+      { diesel: 230, cityGas: 153, electricity: 28584, water: 75 },
+      { diesel: 210, cityGas: 133, electricity: 31528, water: 82 },
+      { diesel: 210, cityGas: 266, electricity: 25201, water: 80 },
+      { diesel: 192, cityGas: 546, electricity: 29857, water: 77 },
+      { diesel: 394, cityGas: 1219, electricity: 36353, water: 77 }
+    ];
+
     const ROADMAP_TARGETS = [
       { year: 2025, target: 579.116, scope1: 92.720, scope2: 486.396, label: "기준(2025)" },
       { year: 2026, target: 568.698, scope1: 106.622, scope2: 462.076, label: "2026목표" },
@@ -1945,9 +1960,9 @@
           const g = parseFloat(t.cityGas);
           const el = parseFloat(t.electricity);
           const w = parseFloat(t.water);
-          const r = parseFloat(t.revenue);
+          const r = parseFloat(t.revenue) || 120;
 
-          if (isNaN(d) || d < 0 || isNaN(g) || g < 0 || isNaN(el) || el < 0 || isNaN(w) || w < 0 || isNaN(r) || r < 0) {
+          if (isNaN(d) || d < 0 || isNaN(g) || g < 0 || isNaN(el) || el < 0 || isNaN(w) || w < 0) {
             setErrorMessage(`${i + 1}월 목표 항목에 0 이상의 올바른 숫자를 입력해주세요.`);
             return;
           }
@@ -1961,7 +1976,7 @@
       };
 
       const handleLoadDefaults = () => {
-        if (window.confirm(`${selectedYear}년도의 목표 매출액과 과거 2개년(2025~2026년) 동월 실제 실적 데이터를 연동한 '계절성 반영 원단위 연동형 목표' 가이드라인을 일괄 계산하여 불러오시겠습니까?`)) {
+        if (window.confirm(`${selectedYear}년도 목표 설정 기본값으로 전년(${selectedYear - 1}년) 동월 실제 사용량 대비 3% 감축(사용량 * 0.97)한 가이드라인 목표를 일괄 불러오시겠습니까?`)) {
           // LocalStorage의 최신 실제 기록도 동기화하여 읽어옵니다.
           const rawSavedRecords = localStorage.getItem('daesung_steel_ghg_records');
           let currentRecords = records;
@@ -1975,62 +1990,26 @@
 
           const updated = editedTargets.map((t, idx) => {
             const m = idx + 1;
-            const currentRevenue = parseFloat(t.revenue) || 120;
+            const prevYear = selectedYear - 1;
+            const prevRecord = currentRecords.find(r => Number(r.year) === prevYear && Number(r.month) === m);
+            const def = DAESUNG_SEASONAL_TARGETS[idx] || { diesel: 0, cityGas: 0, electricity: 0, water: 0 };
 
-            const r2025 = currentRecords.find(r => Number(r.year) === 2025 && Number(r.month) === m);
-            const r2026 = currentRecords.find(r => Number(r.year) === 2026 && Number(r.month) === m);
-
-            const calculateTargetForEnergy = (energyKey, fallbackVal) => {
-              let totalUsage = 0;
-              let totalRev = 0;
-              let hasData = false;
-
-              // 2025년 실제 실적 반영
-              if (r2025 && r2025[energyKey] !== undefined && r2025[energyKey] !== null && r2025[energyKey] !== '') {
-                const u25 = parseFloat(r2025[energyKey]);
-                const rev25 = parseFloat(r2025.revenue);
-                if (!isNaN(u25) && !isNaN(rev25) && rev25 > 0) {
-                  totalUsage += u25;
-                  totalRev += rev25;
-                  hasData = true;
+            const getTarget = (key, fallbackVal) => {
+              if (prevRecord && prevRecord[key] !== undefined && prevRecord[key] !== null && prevRecord[key] !== '') {
+                const val = parseFloat(prevRecord[key]);
+                if (!isNaN(val)) {
+                  return Math.round(val * 0.97);
                 }
               }
-
-              // 2026년 실제 실적 반영
-              if (r2026 && r2026[energyKey] !== undefined && r2026[energyKey] !== null && r2026[energyKey] !== '') {
-                const u26 = parseFloat(r2026[energyKey]);
-                const rev26 = parseFloat(r2026.revenue);
-                if (!isNaN(u26) && !isNaN(rev26) && rev26 > 0) {
-                  totalUsage += u26;
-                  totalRev += rev26;
-                  hasData = true;
-                }
-              }
-
-              // 데이터가 존재하는 경우 계절성 반영 원단위 공식으로 계산
-              // 최종 월별 목표 사용량 = Math.round((당해연도 M월 목표 매출액 * 월별 표준 원단위) * 0.97)
-              if (hasData && totalRev > 0) {
-                const intensity = totalUsage / totalRev;
-                return Math.round((currentRevenue * intensity) * 0.97);
-              } else {
-                // 데이터가 없는 경우 계절성 고정 베이스라인 비율을 사용하여 목표 매출액에 연동 계산
-                const standardIntensity = fallbackVal / 120;
-                return Math.round((currentRevenue * standardIntensity) * 0.97);
-              }
+              return fallbackVal;
             };
-
-            const defaultT = TARGETS_2026[idx];
-            const dieselGoal = calculateTargetForEnergy('diesel', defaultT.diesel);
-            const cityGasGoal = calculateTargetForEnergy('cityGas', defaultT.cityGas);
-            const electricityGoal = calculateTargetForEnergy('electricity', defaultT.electricity);
-            const waterGoal = calculateTargetForEnergy('water', defaultT.water);
 
             return {
               ...t,
-              diesel: dieselGoal.toString(),
-              cityGas: cityGasGoal.toString(),
-              electricity: electricityGoal.toString(),
-              water: waterGoal.toString(),
+              diesel: getTarget('diesel', def.diesel).toString(),
+              cityGas: getTarget('cityGas', def.cityGas).toString(),
+              electricity: getTarget('electricity', def.electricity).toString(),
+              water: getTarget('water', def.water).toString()
             };
           });
 
@@ -2083,7 +2062,6 @@
                     <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">도시가스 목표 (Nm³)</th>
                     <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">구매전력 목표 (kWh)</th>
                     <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">상수도 목표 (TON)</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">목표 매출액 (억원)</th>
                     <th className="py-2.5 px-3 text-right whitespace-nowrap">예상 탄소 배출량 (tCO₂e)</th>
                   </tr>
                 </thead>
@@ -2146,17 +2124,6 @@
                             className="w-full bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1 text-xs text-right focus:outline-none focus:border-[#1C1A17] font-mono"
                           />
                         </td>
-                        <td className="py-1 px-2 border-r border-[#1C1A17]/10">
-                          <input
-                            id={`revenue-target-${m}`}
-                            type="number"
-                            step="any"
-                            required
-                            value={t.revenue}
-                            onChange={(e) => handleInputChange(i, 'revenue', e.target.value)}
-                            className="w-full bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1 text-xs text-right focus:outline-none focus:border-[#1C1A17] font-mono text-blue-700 font-bold"
-                          />
-                        </td>
                         <td className="py-2 px-3 text-right font-bold text-[#1E40AF]">
                           {calc.total.toFixed(3)} t
                         </td>
@@ -2170,7 +2137,7 @@
             <div className="bg-slate-50 border border-slate-200 p-4 text-sm text-slate-500 leading-relaxed flex items-start gap-2.5 rounded-md shadow-sm">
               <span className="text-base shrink-0">💡</span>
               <p>
-                <strong>본 시스템의 목표 가이드라인은</strong> (주)대성스틸의 과거 2개년(2025~2026년) 동월 실제 에너지 사용량과 매출액을 기반으로 산출된 '계절성 표준 원단위'를 근거로 작동합니다. 당해연도 월별 목표 매출액에 계절별 부하 특성(동절기 가스 사용량 증가 등)을 자동 연동한 뒤, 연간 3%의 탄소 감축 시나리오를 적용하여 산출한 합리적인 데이터 기반 예측 모델입니다.
+                본 시스템의 가이드라인은 (주)대성스틸의 과거 2개년(2025~2026년) 실제 사용량 및 조업 데이터를 기반으로 산출된 '계절성 표준 베이스라인' 모델입니다. 연도별 국가 온실가스 감축 시나리오가 반영된 합리적인 기준점입니다.
               </p>
             </div>
 
