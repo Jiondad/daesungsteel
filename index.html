@@ -45,12 +45,26 @@
 
     /* Print-specific style adjustments for A4 Portrait */
     @media print {
-      body {
+      html, body {
         background-color: #ffffff !important;
         color: #000000 !important;
         font-family: 'Noto Sans KR', sans-serif !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+      }
+      
+      /* Force exact color reproduction and clean lines */
+      * {
+        text-shadow: none !important;
+        box-shadow: none !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      
+      /* Avoid elements breaking across pages */
+      .print-avoid-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       
       /* Hide elements with print:hidden */
@@ -90,6 +104,7 @@
       }
       tr {
         page-break-inside: avoid !important;
+        break-inside: avoid !important;
         page-break-after: auto !important;
       }
       th, td {
@@ -104,23 +119,18 @@
         background-color: #ffffff !important;
         border-color: #1C1A17 !important;
       }
-      
-      /* Force high contrast and clean lines */
-      * {
-        text-shadow: none !important;
-        box-shadow: none !important;
-      }
 
       canvas {
         max-width: 100% !important;
         height: auto !important;
         max-height: 200px !important;
         page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
 
       @page {
-        size: A4 portrait;
-        margin: 15mm 12mm;
+        size: A4;
+        margin: 20mm 15mm;
       }
     }
   </style>
@@ -643,6 +653,29 @@
       const [fromMonth, setFromMonth] = useState(1);
       const [toMonth, setToMonth] = useState(6);
       const [printDate, setPrintDate] = useState('');
+      const [showPrintNotice, setShowPrintNotice] = useState(false);
+
+      const isIframe = useMemo(() => {
+        try {
+          return window.self !== window.top;
+        } catch (e) {
+          return true;
+        }
+      }, []);
+
+      const handlePrint = () => {
+        // Always try to invoke window.print()
+        try {
+          window.print();
+        } catch (error) {
+          console.error("Print invocation failed:", error);
+        }
+        
+        // Show guidance notice if inside iframe where print might be blocked or fails to open
+        if (isIframe) {
+          setShowPrintNotice(true);
+        }
+      };
 
       useEffect(() => {
         const updateDate = () => {
@@ -953,7 +986,7 @@
 
               {/* Report Print Button */}
               <button
-                onClick={() => window.print()}
+                onClick={handlePrint}
                 className="flex items-center gap-1.5 h-9 px-3 bg-[#15803D] hover:bg-[#166534] text-white text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm border border-[#15803D]/10 rounded-none shrink-0"
                 title="공식 온실가스 인벤토리 보고서 출력 및 PDF 저장"
               >
@@ -965,7 +998,7 @@
 
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-5">
+            <div className="lg:col-span-2 bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-5 print-avoid-break">
               <h3 className="text-base font-bold text-[#1C1A17] uppercase tracking-wider font-display border-b border-[#FAF9F6] pb-3">
                 {selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서 (Carbon Statement)
               </h3>
@@ -1005,7 +1038,7 @@
                     </div>
                   </div>
 
-                  <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7]">
+                  <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7] print-avoid-break">
                     <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
@@ -1034,7 +1067,7 @@
             </div>
 
             {/* Period Cumulative Card */}
-            <div className="bg-white border border-[#1C1A17]/15 p-6 relative overflow-hidden shadow-sm flex flex-col justify-between">
+            <div className="bg-white border border-[#1C1A17]/15 p-6 relative overflow-hidden shadow-sm flex flex-col justify-between print-avoid-break">
               <div className="absolute top-0 left-0 w-1.5 h-full bg-[#15803D]" />
               <div className="space-y-4">
                 <div className="flex items-center gap-1.5 text-xs text-[#15803D] font-mono font-semibold uppercase tracking-widest">
@@ -1091,7 +1124,7 @@
 
           {/* Details & Live calculations */}
           {periodStats.activeMonthsCount > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-4 print-avoid-break">
               <h4 className="text-xs font-bold text-[#1C1A17] tracking-widest uppercase font-mono flex items-center gap-2">
                 <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
                 에너지 자원별 세부 KPI 분석 및 누출 관리 ({fromMonth}월 ~ {toMonth}월 누적)
@@ -1107,7 +1140,7 @@
 
           {/* Graphical Trends */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
               <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
                 <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
                 {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 목표 대비 실제 총 온실가스 배출량 추이
@@ -1120,7 +1153,7 @@
               </div>
             </div>
 
-            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+            <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
               <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
                 <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
                 {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 매출액 대비 배출량(원단위) 추이
@@ -1312,6 +1345,51 @@
               </div>
             </div>
           </div>
+
+          {/* Print guidance modal for Iframe environments */}
+          {showPrintNotice && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1A17]/80 backdrop-blur-sm print:hidden">
+              <div className="bg-white border border-[#1C1A17]/20 p-6 max-w-md w-full shadow-2xl relative">
+                <button
+                  onClick={() => setShowPrintNotice(false)}
+                  className="absolute top-4 right-4 text-[#78716C] hover:text-[#1C1A17] transition-colors cursor-pointer text-lg font-bold"
+                >
+                  &times;
+                </button>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-[#15803D]/10 flex items-center justify-center text-[#15803D]">
+                    <Icon name="print" className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-[#1C1A17] font-display">보고서 인쇄 및 PDF 저장 안내</h3>
+                </div>
+                <div className="space-y-3 text-xs sm:text-sm text-[#57534E] leading-relaxed mb-6">
+                  <p>
+                    현재 AI Studio 대화창의 <strong>Live Preview (Iframe)</strong> 환경에 접속해 계십니다. 브라우저 보안 정책에 따라 Iframe 내부에서는 직접 인쇄(window.print) 창 실행이 제한될 수 있습니다.
+                  </p>
+                  <p className="font-semibold text-[#1C1A17] bg-[#FCFAF7] p-2.5 border-l-4 border-[#15803D]">
+                    우측 상단의 "새 탭에서 열기" 아이콘을 클릭하여 대시보드를 새 창으로 여신 후 [보고서 출력] 버튼을 누르시면 PDF 저장 및 출력이 완벽하게 가동됩니다.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      window.open(window.location.href, '_blank');
+                      setShowPrintNotice(false);
+                    }}
+                    className="flex-1 py-2 bg-[#1C1A17] hover:bg-[#2C2A27] text-white text-xs sm:text-sm font-bold transition-all cursor-pointer text-center"
+                  >
+                    새 탭에서 열기
+                  </button>
+                  <button
+                    onClick={() => setShowPrintNotice(false)}
+                    className="px-4 py-2 border border-[#E5E2D9] text-[#57534E] hover:text-[#1C1A17] text-xs sm:text-sm font-semibold transition-all cursor-pointer"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
