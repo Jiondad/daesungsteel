@@ -1497,6 +1497,13 @@
       }, [availableYears]);
 
       const handleAddYear = () => {
+        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
+        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
+        if (pin !== token) {
+          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
+          return;
+        }
+
         const newYearStr = window.prompt("등록하실 새로운 연도를 입력하세요 (예: 2027):");
         if (!newYearStr) return;
         const newYear = parseInt(newYearStr, 10);
@@ -1550,6 +1557,14 @@
 
       const handleSaveAll = (e) => {
         if (e) e.preventDefault();
+
+        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
+        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
+        if (pin !== token) {
+          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
+          return;
+        }
+
         const parsed = [];
         for (let i = 0; i < 12; i++) {
           const row = monthlyInputs[i];
@@ -2011,6 +2026,13 @@
       }, [availableYears]);
 
       const handleAddYear = () => {
+        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
+        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
+        if (pin !== token) {
+          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
+          return;
+        }
+
         const newYearStr = window.prompt("등록하실 새로운 연도를 입력하세요 (예: 2027):");
         if (!newYearStr) return;
         const newYear = parseInt(newYearStr, 10);
@@ -2058,6 +2080,14 @@
 
       const handleSaveAll = (e) => {
         if (e) e.preventDefault();
+
+        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
+        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
+        if (pin !== token) {
+          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
+          return;
+        }
+
         const parsed = [];
         for (let i = 0; i < 12; i++) {
           const t = editedTargets[i];
