@@ -1497,13 +1497,6 @@
       }, [availableYears]);
 
       const handleAddYear = () => {
-        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
-        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
-        if (pin !== token) {
-          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
-          return;
-        }
-
         const newYearStr = window.prompt("등록하실 새로운 연도를 입력하세요 (예: 2027):");
         if (!newYearStr) return;
         const newYear = parseInt(newYearStr, 10);
@@ -1557,13 +1550,6 @@
 
       const handleSaveAll = (e) => {
         if (e) e.preventDefault();
-
-        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
-        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
-        if (pin !== token) {
-          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
-          return;
-        }
 
         const parsed = [];
         for (let i = 0; i < 12; i++) {
@@ -2026,13 +2012,6 @@
       }, [availableYears]);
 
       const handleAddYear = () => {
-        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
-        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
-        if (pin !== token) {
-          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
-          return;
-        }
-
         const newYearStr = window.prompt("등록하실 새로운 연도를 입력하세요 (예: 2027):");
         if (!newYearStr) return;
         const newYear = parseInt(newYearStr, 10);
@@ -2080,13 +2059,6 @@
 
       const handleSaveAll = (e) => {
         if (e) e.preventDefault();
-
-        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
-        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
-        if (pin !== token) {
-          alert("❌ 인증에 실패했습니다. 관리자 권한이 없습니다.");
-          return;
-        }
 
         const parsed = [];
         for (let i = 0; i < 12; i++) {
@@ -2354,6 +2326,27 @@
       const [availableYears, setAvailableYears] = useState([2026, 2025, 2024]);
       const [isLoading, setIsLoading] = useState(false);
       const [isSaving, setIsSaving] = useState(false);
+      const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+
+      const handleTabChange = (tabId) => {
+        if (tabId === 'entry' || tabId === 'targets_tab') {
+          if (!isAdminAuthenticated) {
+            const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
+            const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
+            if (pin === token) {
+              setIsAdminAuthenticated(true);
+              setActiveTab(tabId);
+            } else {
+              alert("❌ 권한이 없습니다.");
+            }
+          } else {
+            setActiveTab(tabId);
+          }
+        } else {
+          setIsAdminAuthenticated(false);
+          setActiveTab(tabId);
+        }
+      };
 
       const loadData = async (silent = false) => {
         if (!silent) setIsLoading(true);
@@ -2574,17 +2567,17 @@
 
               {/* Navigation Tabs */}
               <nav className="flex bg-[#F2EFE9] p-1 border border-[#E5E2D9] gap-1 text-xs sm:text-sm font-medium">
-                <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'dashboard' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>대시보드</button>
-                <button onClick={() => setActiveTab('entry')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'entry' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>실적 입력</button>
-                <button onClick={() => setActiveTab('targets_tab')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'targets_tab' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>목표 설정</button>
-                <button onClick={() => setActiveTab('roadmap')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'roadmap' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>로드맵 시뮬레이터</button>
+                <button onClick={() => handleTabChange('dashboard')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'dashboard' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>대시보드</button>
+                <button onClick={() => handleTabChange('entry')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'entry' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>실적 입력</button>
+                <button onClick={() => handleTabChange('targets_tab')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'targets_tab' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>목표 설정</button>
+                <button onClick={() => handleTabChange('roadmap')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'roadmap' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>로드맵 시뮬레이터</button>
               </nav>
             </div>
           </header>
 
           {/* Main content */}
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => setActiveTab('entry')} onRefresh={loadData} availableYears={availableYears} />}
+            {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => handleTabChange('entry')} onRefresh={loadData} availableYears={availableYears} />}
             {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
             {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
             {activeTab === 'roadmap' && <Roadmap records={records} />}
