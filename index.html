@@ -663,7 +663,7 @@
 
 
     // --- MAIN DASHBOARD COMPONENT ---
-    const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh }) => {
+    const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh, availableYears = [2026, 2025, 2024] }) => {
       const [selectedYear, setSelectedYear] = useState(2026);
       const [fromMonth, setFromMonth] = useState(1);
       const [toMonth, setToMonth] = useState(12);
@@ -672,6 +672,7 @@
 
       useEffect(() => {
         if (onRefresh) onRefresh();
+        setToMonth(12);
       }, [selectedYear]);
 
       const isIframe = useMemo(() => {
@@ -978,9 +979,9 @@
                 }}
                 className="h-9 bg-[#FAF9F6] border border-[#E5E2D9] px-3 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
               >
-                <option value={2026}>2026년</option>
-                <option value={2025}>2025년</option>
-                <option value={2024}>2024년</option>
+                {availableYears.map(yr => (
+                  <option key={yr} value={yr}>{yr}년</option>
+                ))}
               </select>
               
               <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 h-9 text-xs sm:text-sm">
@@ -1477,11 +1478,46 @@
 
 
     // --- DATA ENTRY COMPONENT ---
-    const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onSaveTargets, onRefresh }) => {
+    const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onSaveTargets, onRefresh, availableYears = [2026, 2025, 2024], onRegisterYear, isSaving }) => {
+      const [years, setYears] = useState(availableYears);
       const [year, setYear] = useState(2026);
       const [monthlyInputs, setMonthlyInputs] = useState([]);
       const [successMessage, setSuccessMessage] = useState('');
       const [errorMessage, setErrorMessage] = useState('');
+
+      const currentYear = year;
+      const setCurrentYear = (val) => {
+        setYear(Number(val));
+      };
+
+      useEffect(() => {
+        if (availableYears) {
+          setYears(availableYears);
+        }
+      }, [availableYears]);
+
+      const handleAddYear = () => {
+        const newYearStr = window.prompt("등록하실 새로운 연도를 입력하세요 (예: 2027):");
+        if (!newYearStr) return;
+        const newYear = parseInt(newYearStr, 10);
+        if (isNaN(newYear) || newYear < 2000 || newYear > 2100) {
+          alert("올바른 연도 4자리를 입력해주세요.");
+          return;
+        }
+        // 연도 선택 드롭다운 배열에 즉시 추가하여 리렌더링 유발
+        if (!years.includes(newYear)) {
+          const updatedYears = [...years, newYear].sort((a, b) => b - a);
+          setYears(updatedYears); // 연도 상태 업데이트 함수를 반드시 실행해줘
+          setCurrentYear(newYear); // 새로 등록한 연도로 자동 전환
+
+          if (onRegisterYear) {
+            onRegisterYear(newYear);
+          }
+          alert(newYear + "년이 성공적으로 등록되었습니다. 실적과 목표를 입력해주세요.");
+        } else {
+          alert("이미 등록된 연도입니다.");
+        }
+      };
 
       useEffect(() => {
         if (onRefresh) onRefresh();
@@ -1582,10 +1618,18 @@
                 onChange={(e) => setYear(Number(e.target.value))}
                 className="bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-1.5 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
               >
-                <option value={2026}>2026년</option>
-                <option value={2025}>2025년</option>
-                <option value={2024}>2024년</option>
+                {years.map(y => (
+                  <option key={y} value={y}>{y}년</option>
+                ))}
               </select>
+              <button
+                type="button"
+                onClick={handleAddYear}
+                className="px-3 py-1.5 bg-[#1C1A17] hover:bg-[#1C1A17]/85 text-[#FAF9F6] text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 shadow-sm"
+              >
+                <Icon name="plus" className="w-3.5 h-3.5" />
+                <span>+ 새 연도 등록</span>
+              </button>
               <button
                 type="button"
                 onClick={handleClear}
@@ -1691,9 +1735,19 @@
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="submit"
-                className="px-6 py-3 bg-[#1C1A17] text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer flex items-center gap-1.5"
+                disabled={isSaving}
+                className="px-6 py-3 bg-[#1C1A17] disabled:bg-[#1C1A17]/60 text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
-                <Icon name="database" className="w-4 h-4" /> {year}년도 실적 일괄 저장 및 동기화
+                {isSaving ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-[#FAF9F6] border-t-transparent inline-block mr-1"></span>
+                    <span>저장 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon name="database" className="w-4 h-4" /> <span>{year}년도 실적 일괄 저장 및 동기화</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -1939,11 +1993,46 @@
 
 
     // --- TARGET SETTING COMPONENT ---
-    const TargetSetting = ({ targets, onSaveTargets, records, onRefresh }) => {
+    const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, availableYears = [2026, 2025, 2024], onRegisterYear, isSaving }) => {
+      const [years, setYears] = useState(availableYears);
       const [selectedYear, setSelectedYear] = useState(2026);
       const [editedTargets, setEditedTargets] = useState([]);
       const [successMessage, setSuccessMessage] = useState('');
       const [errorMessage, setErrorMessage] = useState('');
+
+      const currentYear = selectedYear;
+      const setCurrentYear = (val) => {
+        setSelectedYear(Number(val));
+      };
+
+      useEffect(() => {
+        if (availableYears) {
+          setYears(availableYears);
+        }
+      }, [availableYears]);
+
+      const handleAddYear = () => {
+        const newYearStr = window.prompt("등록하실 새로운 연도를 입력하세요 (예: 2027):");
+        if (!newYearStr) return;
+        const newYear = parseInt(newYearStr, 10);
+        if (isNaN(newYear) || newYear < 2000 || newYear > 2100) {
+          alert("올바른 연도 4자리를 입력해주세요.");
+          return;
+        }
+        // 연도 선택 드롭다운 배열에 즉시 추가하여 리렌더링 유발
+        if (!years.includes(newYear)) {
+          const updatedYears = [...years, newYear].sort((a, b) => b - a);
+          setYears(updatedYears); // 연도 상태 업데이트 함수를 반드시 실행해줘
+          setCurrentYear(newYear); // 새로 등록한 연도로 자동 전환
+
+          if (onRegisterYear) {
+            onRegisterYear(newYear);
+          }
+          alert(newYear + "년이 성공적으로 등록되었습니다. 실적과 목표를 입력해주세요.");
+        } else {
+          alert("이미 등록된 연도입니다.");
+        }
+      };
 
       useEffect(() => {
         if (onRefresh) onRefresh();
@@ -1995,21 +2084,7 @@
 
       const handleLoadDefaults = () => {
         if (window.confirm(`${selectedYear}년도 목표 설정 기본값으로 전년(${selectedYear - 1}년) 동월 실제 사용량 대비 3% 감축(사용량 * 0.97)한 가이드라인 목표를 일괄 불러오시겠습니까?`)) {
-          // LocalStorage의 최신 실제 기록도 동기화하여 읽어옵니다.
-          const rawSavedRecords = localStorage.getItem('daesung_actual_data');
-          let currentRecords = records;
-          if (rawSavedRecords) {
-            try {
-              const parsed = JSON.parse(rawSavedRecords);
-              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                currentRecords = Object.values(parsed).flat();
-              } else if (Array.isArray(parsed)) {
-                currentRecords = parsed;
-              }
-            } catch (e) {
-              console.error('기록 파싱 실패:', e);
-            }
-          }
+          const currentRecords = records;
 
           const updated = editedTargets.map((t, idx) => {
             const m = idx + 1;
@@ -2061,10 +2136,18 @@
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                 className="bg-[#FAF9F6] border border-[#E5E2D9] px-3 py-1.5 text-xs sm:text-sm font-mono cursor-pointer focus:outline-none focus:border-[#1C1A17]"
               >
-                <option value={2026}>2026년</option>
-                <option value={2025}>2025년</option>
-                <option value={2024}>2024년</option>
+                {years.map(y => (
+                  <option key={y} value={y}>{y}년</option>
+                ))}
               </select>
+              <button
+                type="button"
+                onClick={handleAddYear}
+                className="px-3 py-1.5 bg-[#1C1A17] hover:bg-[#1C1A17]/85 text-[#FAF9F6] text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 shadow-sm"
+              >
+                <Icon name="plus" className="w-3.5 h-3.5" />
+                <span>+ 새 연도 등록</span>
+              </button>
               <button
                 type="button"
                 onClick={handleLoadDefaults}
@@ -2170,9 +2253,19 @@
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="submit"
-                className="px-6 py-3 bg-[#1C1A17] text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer flex items-center gap-1.5"
+                disabled={isSaving}
+                className="px-6 py-3 bg-[#1C1A17] disabled:bg-[#1C1A17]/60 text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
-                <Icon name="database" className="w-4 h-4" /> {selectedYear}년 목표 저장하기
+                {isSaving ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-[#FAF9F6] border-t-transparent inline-block mr-1"></span>
+                    <span>저장 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icon name="database" className="w-4 h-4" /> <span>{selectedYear}년 목표 저장하기</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -2224,205 +2317,208 @@
       ]
     };
 
+    const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwjl3TGSLMD7e3R7MwO14rYuX_7JKZaSXX_Rd5Jf25hGrovGNX4YD4mUroBiE9UbRcJ/exec";
+
     function App() {
       const [records, setRecords] = useState([]);
       const [targets, setTargets] = useState({});
       const [activeTab, setActiveTab] = useState('dashboard');
+      const [availableYears, setAvailableYears] = useState([2026, 2025, 2024]);
+      const [isLoading, setIsLoading] = useState(false);
+      const [isSaving, setIsSaving] = useState(false);
 
-      const refreshData = () => {
-        // 1. Load actual records with robust migration & structure safety
-        let currentActualObj = null;
-        const savedActual = localStorage.getItem(LOCAL_STORAGE_KEY);
-        
-        if (savedActual) {
-          try {
-            const parsed = JSON.parse(savedActual);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              currentActualObj = parsed;
-            } else if (Array.isArray(parsed)) {
-              // Convert legacy array structure to year-keyed object
-              const grouped = {};
-              parsed.forEach(r => {
-                const yr = r.year || 2026;
-                if (!grouped[yr]) grouped[yr] = [];
-                grouped[yr].push(r);
-              });
-              currentActualObj = grouped;
-            }
-          } catch (e) {
-            console.error('실적 데이터 파싱 실패:', e);
-          }
-        }
+      const loadData = async (silent = false) => {
+        if (!silent) setIsLoading(true);
+        try {
+          const res = await fetch(GOOGLE_WEBAPP_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "load", cellLocation: "A1" })
+          });
+          const responseJson = await res.json();
+          if (responseJson && responseJson.result === "success" && responseJson.data) {
+            const parsedState = JSON.parse(responseJson.data);
+            
+            const loadedYears = Array.isArray(parsedState.availableYears) ? parsedState.availableYears : [2026, 2025, 2024];
+            const loadedRecords = Array.isArray(parsedState.records) ? parsedState.records : [];
+            const loadedTargets = (parsedState.targets && typeof parsedState.targets === 'object') ? parsedState.targets : {};
+            
+            setAvailableYears(loadedYears);
+            setRecords(loadedRecords);
+            setTargets(loadedTargets);
+          } else {
+            // First run: data is empty/null, initialize with default values
+            const defaultYears = [2026, 2025, 2024];
+            const grouped = { ...DEFAULT_ACTUAL_DATA };
+            const flatRecords = [];
+            defaultYears.forEach(yr => {
+              const yrRecords = grouped[yr] || [];
+              const sanitized = yrRecords.map(r => ({
+                ...r,
+                revenue: typeof r.revenue === 'number' && !isNaN(r.revenue) ? r.revenue : 120,
+              }));
+              flatRecords.push(...sanitized);
+            });
 
-        // Check legacy flat storage as fallback
-        if (!currentActualObj) {
-          const legacyRecords = localStorage.getItem('daesung_steel_ghg_records');
-          if (legacyRecords) {
-            try {
-              const parsedLegacy = JSON.parse(legacyRecords);
-              if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-                const grouped = {};
-                parsedLegacy.forEach(r => {
-                  const yr = r.year || 2026;
-                  if (!grouped[yr]) grouped[yr] = [];
-                  grouped[yr].push(r);
-                });
-                currentActualObj = grouped;
-              }
-            } catch (e) {
-              console.error('Legacy records parsing failed:', e);
-            }
-          }
-        }
+            const defaultTargets = {};
+            defaultYears.forEach(yr => {
+              defaultTargets[yr] = TARGETS_2026;
+            });
 
-        // Merge or initialize with default actual data
-        const finalActualObj = { ...DEFAULT_ACTUAL_DATA, ...currentActualObj };
-        
-        // Sanitize data
-        const sanitizedObj = {};
-        const years = [2024, 2025, 2026];
-        years.forEach(yr => {
-          const yrRecords = finalActualObj[yr] || [];
-          sanitizedObj[yr] = yrRecords.map(r => ({
-            ...r,
-            revenue: typeof r.revenue === 'number' && !isNaN(r.revenue) ? r.revenue : 120,
-          }));
-        });
-
-        // Save back to local storage as structured object
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitizedObj));
-        setRecords(Object.values(sanitizedObj).flat());
-
-        // 2. Load targets with fallback
-        const savedTargets = localStorage.getItem('daesung_steel_ghg_targets');
-        if (savedTargets) {
-          try {
-            setTargets(JSON.parse(savedTargets));
-          } catch (e) {
-            const defaultTargets = { 2026: TARGETS_2026, 2025: TARGETS_2026, 2024: TARGETS_2026 };
+            setAvailableYears(defaultYears);
+            setRecords(flatRecords);
             setTargets(defaultTargets);
-            localStorage.setItem('daesung_steel_ghg_targets', JSON.stringify(defaultTargets));
+
+            // Auto-save the default state so Google Sheet is populated
+            const stateToSave = {
+              availableYears: defaultYears,
+              records: flatRecords,
+              targets: defaultTargets
+            };
+            await fetch(GOOGLE_WEBAPP_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "save", cellLocation: "A1", data: JSON.stringify(stateToSave) })
+            });
           }
-        } else {
-          const defaultTargets = { 2026: TARGETS_2026, 2025: TARGETS_2026, 2024: TARGETS_2026 };
-          setTargets(defaultTargets);
-          localStorage.setItem('daesung_steel_ghg_targets', JSON.stringify(defaultTargets));
+        } catch (e) {
+          console.error("데이터 로드 중 오류 발생:", e);
+        } finally {
+          if (!silent) setIsLoading(false);
+        }
+      };
+
+      const saveSharedData = async (updatedYears, updatedRecords, updatedTargets) => {
+        setIsSaving(true);
+        try {
+          const stateToSave = {
+            availableYears: updatedYears,
+            records: updatedRecords,
+            targets: updatedTargets
+          };
+          const res = await fetch(GOOGLE_WEBAPP_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "save",
+              cellLocation: "A1",
+              data: JSON.stringify(stateToSave)
+            })
+          });
+          const responseJson = await res.json();
+          if (responseJson && responseJson.result === "success") {
+            return true;
+          } else {
+            console.error("저장 실패:", responseJson);
+            return false;
+          }
+        } catch (e) {
+          console.error("데이터 저장 중 오류 발생:", e);
+          return false;
+        } finally {
+          setIsSaving(false);
         }
       };
 
       useEffect(() => {
-        refreshData();
+        loadData();
       }, []);
 
-      const handleSaveRecord = (record) => {
-        setRecords(prev => {
-          const idx = prev.findIndex(r => r.id === record.id);
-          let updated;
-          if (idx > -1) {
-            updated = [...prev];
-            updated[idx] = record;
-          } else {
-            updated = [...prev, record];
-          }
+      const handleSaveRecord = async (record) => {
+        const nextRecords = [...records];
+        const idx = nextRecords.findIndex(r => r.id === record.id);
+        if (idx > -1) {
+          nextRecords[idx] = record;
+        } else {
+          nextRecords.push(record);
+        }
 
-          // Fetch the latest existing data object from localStorage
-          let existingData = { ...DEFAULT_ACTUAL_DATA };
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                existingData = parsed;
-              }
-            } catch (e) {
-              console.error(e);
-            }
-          }
-
-          const recordYear = Number(record.year);
-          existingData[recordYear] = updated.filter(r => Number(r.year) === recordYear);
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existingData));
-          return updated;
-        });
+        const success = await saveSharedData(availableYears, nextRecords, targets);
+        if (success) {
+          setRecords(nextRecords);
+        }
+        return success;
       };
 
-      const handleSaveRecords = (year, yearRecords) => {
-        setRecords(prev => {
-          const filtered = prev.filter(r => r.year !== year);
-          const updated = [...filtered, ...yearRecords];
+      const handleSaveRecords = async (year, yearRecords) => {
+        const filtered = records.filter(r => r.year !== year);
+        const nextRecords = [...filtered, ...yearRecords];
 
-          // Fetch the latest existing data object from localStorage
-          let existingData = { ...DEFAULT_ACTUAL_DATA };
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                existingData = parsed;
-              }
-            } catch (e) {
-              console.error(e);
-            }
-          }
-
-          existingData[year] = yearRecords;
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existingData));
-          return updated;
-        });
+        const success = await saveSharedData(availableYears, nextRecords, targets);
+        if (success) {
+          setRecords(nextRecords);
+        }
+        return success;
       };
 
-      const handleDeleteRecord = (id) => {
+      const handleDeleteRecord = async (id) => {
         if (window.confirm('정말로 이 월별 실적 기록을 삭제하시겠습니까? 관련 탄소 배출 데이터가 영구 삭제됩니다.')) {
-          setRecords(prev => {
-            const recordToDelete = prev.find(r => r.id === id);
-            const updated = prev.filter(r => r.id !== id);
-
-            if (recordToDelete) {
-              const recordYear = Number(recordToDelete.year);
-              let existingData = { ...DEFAULT_ACTUAL_DATA };
-              const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-              if (saved) {
-                try {
-                  const parsed = JSON.parse(saved);
-                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                    existingData = parsed;
-                  }
-                } catch (e) {
-                  console.error(e);
-                }
-              }
-
-              existingData[recordYear] = updated.filter(r => Number(r.year) === recordYear);
-              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existingData));
-            }
-
-            return updated;
-          });
+          const nextRecords = records.filter(r => r.id !== id);
+          const success = await saveSharedData(availableYears, nextRecords, targets);
+          if (success) {
+            setRecords(nextRecords);
+          }
         }
       };
 
-      const handleSaveTargets = (year, newTargets) => {
-        setTargets(prev => {
-          let existingTargets = {};
-          const saved = localStorage.getItem('daesung_steel_ghg_targets');
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (parsed && typeof parsed === 'object') {
-                existingTargets = parsed;
-              }
-            } catch (e) {
-              console.error(e);
-            }
-          }
-          const updated = { ...existingTargets, [year]: newTargets };
-          localStorage.setItem('daesung_steel_ghg_targets', JSON.stringify(updated));
-          return updated;
-        });
+      const handleSaveTargets = async (year, newTargets) => {
+        const nextTargets = { ...targets, [year]: newTargets };
+        const success = await saveSharedData(availableYears, records, nextTargets);
+        if (success) {
+          setTargets(nextTargets);
+        }
+        return success;
+      };
+
+      const handleRegisterYear = async (newYear) => {
+        const yr = parseInt(newYear, 10);
+        if (isNaN(yr) || yr < 1000 || yr > 9999) {
+          alert('올바른 4자리 연도를 입력해주세요 (예: 2027).');
+          return false;
+        }
+
+        if (availableYears.includes(yr)) {
+          alert('이미 등록된 연도입니다.');
+          return false;
+        }
+
+        const nextYears = [...availableYears, yr].sort((a, b) => b - a);
+        
+        const newActualsForYear = Array.from({ length: 12 }, (_, i) => ({
+          id: `${yr}-${(i + 1).toString().padStart(2, '0')}`,
+          year: yr,
+          month: i + 1,
+          diesel: '',
+          cityGas: '',
+          electricity: '',
+          water: '',
+          revenue: '',
+        }));
+        const nextRecords = [...records, ...newActualsForYear];
+        const nextTargets = { ...targets, [yr]: TARGETS_2026 };
+
+        const success = await saveSharedData(nextYears, nextRecords, nextTargets);
+        if (success) {
+          setAvailableYears(nextYears);
+          setRecords(nextRecords);
+          setTargets(nextTargets);
+          return yr;
+        }
+        return false;
       };
 
       return (
-        <div className="min-h-screen bg-[#FAF9F6] text-[#1C1A17] flex flex-col font-sans">
+        <div className="min-h-screen bg-[#FAF9F6] text-[#1C1A17] flex flex-col font-sans relative">
+          {isLoading && (
+            <div className="fixed inset-0 z-[9999] bg-[#FAF9F6]/85 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#1C1A17] border-t-transparent shadow-sm"></div>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-bold text-[#1C1A17] font-sans">중앙 공유 데이터베이스 연결 중...</p>
+                <p className="text-[10px] text-[#57534E] font-mono uppercase tracking-wider">Loading real-time data from Google Sheets</p>
+              </div>
+            </div>
+          )}
+
           {/* Top Banner */}
           <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-2.5 text-center text-xs text-[#E5E2D9] font-mono flex items-center justify-center gap-2 print:hidden">
             <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse inline-block" />
@@ -2455,9 +2551,9 @@
 
           {/* Main content */}
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => setActiveTab('entry')} onRefresh={refreshData} />}
-            {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={refreshData} />}
-            {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={refreshData} />}
+            {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => setActiveTab('entry')} onRefresh={loadData} availableYears={availableYears} />}
+            {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
+            {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
             {activeTab === 'roadmap' && <Roadmap records={records} />}
           </main>
 
