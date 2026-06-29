@@ -1548,8 +1548,8 @@
         });
       };
 
-      const handleSave = (e) => {
-        e.preventDefault();
+      const handleSaveAll = (e) => {
+        if (e) e.preventDefault();
         const parsed = [];
         for (let i = 0; i < 12; i++) {
           const row = monthlyInputs[i];
@@ -1581,8 +1581,6 @@
 
         onSaveRecords(year, parsed);
         setErrorMessage('');
-        setSuccessMessage(`${year}년도 실적 데이터가 일괄 성공적으로 저장 및 동기화되었습니다.`);
-        setTimeout(() => setSuccessMessage(''), 4000);
       };
 
       const handleClear = () => {
@@ -1640,7 +1638,7 @@
             </div>
           </div>
 
-          <form onSubmit={handleSave} className="space-y-6">
+          <form onSubmit={handleSaveAll} className="space-y-6">
             <div className="overflow-x-auto border border-[#1C1A17]/10 w-full">
               <table className="w-full text-left border-collapse table-auto text-xs">
                 <thead>
@@ -1735,13 +1733,14 @@
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="submit"
+                onClick={handleSaveAll}
                 disabled={isSaving}
                 className="px-6 py-3 bg-[#1C1A17] disabled:bg-[#1C1A17]/60 text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
                 {isSaving ? (
                   <>
                     <span className="animate-spin rounded-full h-4 w-4 border-2 border-[#FAF9F6] border-t-transparent inline-block mr-1"></span>
-                    <span>저장 중...</span>
+                    <span>데이터 처리 중...</span>
                   </>
                 ) : (
                   <>
@@ -2057,8 +2056,8 @@
         });
       };
 
-      const handleSave = (e) => {
-        e.preventDefault();
+      const handleSaveAll = (e) => {
+        if (e) e.preventDefault();
         const parsed = [];
         for (let i = 0; i < 12; i++) {
           const t = editedTargets[i];
@@ -2078,8 +2077,6 @@
 
         onSaveTargets(selectedYear, parsed);
         setErrorMessage('');
-        setSuccessMessage(`${selectedYear}년도 온실가스 에너지원별 월별 목표가 성공적으로 저장되었습니다.`);
-        setTimeout(() => setSuccessMessage(''), 4000);
       };
 
       const handleLoadDefaults = () => {
@@ -2158,7 +2155,7 @@
             </div>
           </div>
 
-          <form onSubmit={handleSave} className="space-y-6">
+          <form onSubmit={handleSaveAll} className="space-y-6">
             <div className="overflow-x-auto border border-[#1C1A17]/10 w-full">
               <table className="w-full text-left border-collapse table-auto text-xs">
                 <thead>
@@ -2253,13 +2250,14 @@
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="submit"
+                onClick={handleSaveAll}
                 disabled={isSaving}
                 className="px-6 py-3 bg-[#1C1A17] disabled:bg-[#1C1A17]/60 text-white text-xs font-bold hover:bg-[#2C2A27] transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
                 {isSaving ? (
                   <>
                     <span className="animate-spin rounded-full h-4 w-4 border-2 border-[#FAF9F6] border-t-transparent inline-block mr-1"></span>
-                    <span>저장 중...</span>
+                    <span>데이터 처리 중...</span>
                   </>
                 ) : (
                   <>
@@ -2332,7 +2330,7 @@
         try {
           const res = await fetch(GOOGLE_WEBAPP_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({ action: "load", cellLocation: "A1" })
           });
           const responseJson = await res.json();
@@ -2377,7 +2375,7 @@
             };
             await fetch(GOOGLE_WEBAPP_URL, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "text/plain" },
               body: JSON.stringify({ action: "save", cellLocation: "A1", data: JSON.stringify(stateToSave) })
             });
           }
@@ -2388,32 +2386,37 @@
         }
       };
 
-      const saveSharedData = async (updatedYears, updatedRecords, updatedTargets) => {
-        setIsSaving(true);
+      const handleSaveAll = async (updatedYears = availableYears, updatedRecords = records, updatedTargets = targets) => {
         try {
+          setIsSaving(true);
           const stateToSave = {
             availableYears: updatedYears,
             records: updatedRecords,
             targets: updatedTargets
           };
-          const res = await fetch(GOOGLE_WEBAPP_URL, {
+          const payload = {
+            action: "save",
+            cellLocation: "A1",
+            data: JSON.stringify(stateToSave)
+          };
+          const response = await fetch(GOOGLE_WEBAPP_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "save",
-              cellLocation: "A1",
-              data: JSON.stringify(stateToSave)
-            })
+            headers: {
+              "Content-Type": "text/plain"
+            },
+            body: JSON.stringify(payload)
           });
-          const responseJson = await res.json();
-          if (responseJson && responseJson.result === "success") {
+          const result = await response.json();
+          if (result && result.result === "success") {
+            alert("대성스틸 공용 구글 DB에 안전하게 일괄 저장이 완료되었습니다!");
             return true;
           } else {
-            console.error("저장 실패:", responseJson);
+            alert("DB 저장 중 오류가 발생했습니다.");
             return false;
           }
-        } catch (e) {
-          console.error("데이터 저장 중 오류 발생:", e);
+        } catch (error) {
+          console.error(error);
+          alert("구글 서버 통신 실패: " + error.toString());
           return false;
         } finally {
           setIsSaving(false);
@@ -2433,7 +2436,7 @@
           nextRecords.push(record);
         }
 
-        const success = await saveSharedData(availableYears, nextRecords, targets);
+        const success = await handleSaveAll(availableYears, nextRecords, targets);
         if (success) {
           setRecords(nextRecords);
         }
@@ -2444,7 +2447,7 @@
         const filtered = records.filter(r => r.year !== year);
         const nextRecords = [...filtered, ...yearRecords];
 
-        const success = await saveSharedData(availableYears, nextRecords, targets);
+        const success = await handleSaveAll(availableYears, nextRecords, targets);
         if (success) {
           setRecords(nextRecords);
         }
@@ -2454,7 +2457,7 @@
       const handleDeleteRecord = async (id) => {
         if (window.confirm('정말로 이 월별 실적 기록을 삭제하시겠습니까? 관련 탄소 배출 데이터가 영구 삭제됩니다.')) {
           const nextRecords = records.filter(r => r.id !== id);
-          const success = await saveSharedData(availableYears, nextRecords, targets);
+          const success = await handleSaveAll(availableYears, nextRecords, targets);
           if (success) {
             setRecords(nextRecords);
           }
@@ -2463,7 +2466,7 @@
 
       const handleSaveTargets = async (year, newTargets) => {
         const nextTargets = { ...targets, [year]: newTargets };
-        const success = await saveSharedData(availableYears, records, nextTargets);
+        const success = await handleSaveAll(availableYears, records, nextTargets);
         if (success) {
           setTargets(nextTargets);
         }
@@ -2497,7 +2500,7 @@
         const nextRecords = [...records, ...newActualsForYear];
         const nextTargets = { ...targets, [yr]: TARGETS_2026 };
 
-        const success = await saveSharedData(nextYears, nextRecords, nextTargets);
+        const success = await handleSaveAll(nextYears, nextRecords, nextTargets);
         if (success) {
           setAvailableYears(nextYears);
           setRecords(nextRecords);
