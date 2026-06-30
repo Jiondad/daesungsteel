@@ -1379,6 +1379,34 @@
                       {yearStats.activeMonths > 0 && yearStats.intensity > 0 ? formatVal(yearStats.intensity, 3) : '-'}
                     </td>
                   </tr>
+
+                  {/* 에너지 환산 합계 (MWh) */}
+                  <tr className="bg-[#F5F5F4] font-bold text-[#1C1A17] border-t border-[#1C1A17]/15">
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-bold whitespace-nowrap">
+                      에너지 환산 합계 (MWh)
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel * 0.0000945, 1) : '0.0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.cityGas * 0.001105, 1) : '0.0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                      {yearStats.activeMonths > 0 ? formatVal(yearStats.electricity * 0.001, 1) : '0.0'}
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
+                      -
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
+                      -
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
+                      -
+                    </td>
+                    <td className="py-3 px-2 sm:px-3 text-center font-mono text-[#57534E]">
+                      -
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
