@@ -144,9 +144,9 @@
 
     // --- EMISSION FACTOR CONSTANTS ---
     const EMISSION_FACTORS = {
-      diesel: 0.0025822,      // tCO2e / L
-      cityGas: 0.0021952,     // tCO2e / Nm³
-      electricity: 0.0004687, // tCO2e / kWh
+      diesel: 0.002624,      // tCO2e / L
+      cityGas: 0.002129,     // tCO2e / Nm³
+      electricity: 0.0004594, // tCO2e / kWh
       water: 0.000237,        // tCO2e / TON
     };
 
@@ -190,9 +190,9 @@
     ];
 
     function calculateEmissions(diesel, cityGas, electricity) {
-      const s1Diesel = (diesel || 0) * EMISSION_FACTORS.diesel;
-      const s1Gas = (cityGas || 0) * EMISSION_FACTORS.cityGas;
-      const s2Elec = (electricity || 0) * EMISSION_FACTORS.electricity;
+      const s1Diesel = Number(((diesel || 0) * EMISSION_FACTORS.diesel).toFixed(3));
+      const s1Gas = Number(((cityGas || 0) * EMISSION_FACTORS.cityGas).toFixed(3));
+      const s2Elec = Number(((electricity || 0) * EMISSION_FACTORS.electricity).toFixed(3));
       return {
         scope1: s1Diesel + s1Gas,
         scope2: s2Elec,
