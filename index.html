@@ -2481,7 +2481,7 @@
       const [cachedDb, setCachedDb] = useState(null);
 
       const handleTabChange = (tabId) => {
-        if (tabId === 'entry' || tabId === 'targets_tab' || tabId === 'roadmap') {
+        if (tabId === 'entry' || tabId === 'targets_tab') {
           if (!isAdminAuthenticated) {
             const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
             const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
