@@ -1790,10 +1790,103 @@
 
 
     // --- ROADMAP COMPONENT ---
-    const Roadmap = ({ records }) => {
+    const Roadmap = ({ records, availableYears = [2026, 2025, 2024] }) => {
+      const [baselineYear, setBaselineYear] = useState(2025);
       const [solarRate, setSolarRate] = useState(0);
       const [burnerEfficiency, setBurnerEfficiency] = useState(0);
       const [evTransition, setEvTransition] = useState(0);
+
+      const baselineYearData = useMemo(() => {
+        const baselineRecords = records.filter(r => r.year === baselineYear);
+        const monthsCount = baselineRecords.length;
+        let totalDiesel = 0;
+        let totalCityGas = 0;
+        let totalElectricity = 0;
+        
+        baselineRecords.forEach(r => {
+          totalDiesel += r.diesel || 0;
+          totalCityGas += r.cityGas || 0;
+          totalElectricity += r.electricity || 0;
+        });
+
+        // Extrapolate if months < 12 and months > 0
+        if (monthsCount < 12 && monthsCount > 0) {
+          totalDiesel = (totalDiesel / monthsCount) * 12;
+          totalCityGas = (totalCityGas / monthsCount) * 12;
+          totalElectricity = (totalElectricity / monthsCount) * 12;
+        }
+
+        // If no records, fallback to the standard 2025 default baseline values
+        if (monthsCount === 0) {
+          return {
+            diesel: 4847.561,
+            cityGas: 37576.327,
+            electricity: 1058763.605,
+            scope1GasEm: 80.0,
+            scope1DieselEm: 12.720,
+            scope2ElecEm: 486.396,
+            totalEm: 579.116
+          };
+        }
+
+        const scope1DieselEm = Number((totalDiesel * EMISSION_FACTORS.diesel).toFixed(3));
+        const scope1GasEm = Number((totalCityGas * EMISSION_FACTORS.cityGas).toFixed(3));
+        const scope2ElecEm = Number((totalElectricity * EMISSION_FACTORS.electricity).toFixed(3));
+        const totalEm = scope1DieselEm + scope1GasEm + scope2ElecEm;
+
+        return {
+          diesel: totalDiesel,
+          cityGas: totalCityGas,
+          electricity: totalElectricity,
+          scope1DieselEm,
+          scope1GasEm,
+          scope2ElecEm,
+          totalEm
+        };
+      }, [records, baselineYear]);
+
+      const roadmapTargets = useMemo(() => {
+        const baseTotal = baselineYearData.totalEm;
+        const baseScope1 = baselineYearData.scope1DieselEm + baselineYearData.scope1GasEm;
+        const baseScope2 = baselineYearData.scope2ElecEm;
+
+        return [
+          {
+            year: baselineYear,
+            target: baseTotal,
+            scope1: baseScope1,
+            scope2: baseScope2,
+            label: `기준 (${baselineYear}년)`
+          },
+          {
+            year: baselineYear + 1,
+            target: Number((baseTotal * 0.982011).toFixed(3)),
+            scope1: Number((baseScope1 * 1.149935).toFixed(3)),
+            scope2: Number((baseScope2 * 0.950000).toFixed(3)),
+            label: `${baselineYear + 1}목표`
+          },
+          {
+            year: baselineYear + 2,
+            target: Number((baseTotal * 0.936591).toFixed(3)),
+            label: `${baselineYear + 2}목표`
+          },
+          {
+            year: baselineYear + 3,
+            target: Number((baseTotal * 0.893335).toFixed(3)),
+            label: `${baselineYear + 3}목표`
+          },
+          {
+            year: baselineYear + 4,
+            target: Number((baseTotal * 0.852131).toFixed(3)),
+            label: `${baselineYear + 4}목표`
+          },
+          {
+            year: baselineYear + 5,
+            target: Number((baseTotal * 0.812887).toFixed(3)),
+            label: `${baselineYear + 5}목표 (${baselineYear + 5}년)`
+          }
+        ];
+      }, [baselineYear, baselineYearData]);
 
       const actualAnnualEmissions = useMemo(() => {
         const sums = {};
@@ -1817,9 +1910,9 @@
       }, [records]);
 
       const simulatedData = useMemo(() => {
-        const baseScope1Gas = 80.0;
-        const baseScope1Diesel = 12.720;
-        const baseScope2Elec = 486.396;
+        const baseScope1Gas = baselineYearData.scope1GasEm;
+        const baseScope1Diesel = baselineYearData.scope1DieselEm;
+        const baseScope2Elec = baselineYearData.scope2ElecEm;
 
         const s2Reduction = baseScope2Elec * (solarRate / 100) * 0.45;
         const simScope2 = baseScope2Elec - s2Reduction;
@@ -1837,21 +1930,22 @@
           scope2: simScope2 + evElecAddition,
           total: simScope1Gas + simScope1Diesel + simScope2 + evElecAddition
         };
-      }, [solarRate, burnerEfficiency, evTransition]);
+      }, [solarRate, burnerEfficiency, evTransition, baselineYearData]);
 
       const chartData = useMemo(() => {
-        return ROADMAP_TARGETS.map(targetPoint => {
+        return roadmapTargets.map(targetPoint => {
           const year = targetPoint.year;
           const actualPt = actualAnnualEmissions.find(a => a.year === year);
           let projectionValue = null;
 
-          if (year === 2025) {
-            projectionValue = 579.116;
-          } else if (year === 2026) {
-            projectionValue = parseFloat((579.116 - (579.116 - simulatedData.total) * 0.2).toFixed(3));
+          const baseTotal = baselineYearData.totalEm;
+          if (year === baselineYear) {
+            projectionValue = baseTotal;
+          } else if (year === baselineYear + 1) {
+            projectionValue = parseFloat((baseTotal - (baseTotal - simulatedData.total) * 0.2).toFixed(3));
           } else {
-            const factor = (year - 2026) / 4;
-            projectionValue = parseFloat((579.116 - (579.116 - simulatedData.total) * factor).toFixed(3));
+            const factor = (year - (baselineYear + 1)) / 4;
+            projectionValue = parseFloat((baseTotal - (baseTotal - simulatedData.total) * factor).toFixed(3));
           }
 
           return {
@@ -1861,9 +1955,10 @@
             sim: projectionValue
           };
         });
-      }, [actualAnnualEmissions, simulatedData]);
+      }, [actualAnnualEmissions, simulatedData, roadmapTargets, baselineYear, baselineYearData]);
 
-      const isGoalMetIn2030 = simulatedData.total <= 470.756;
+      const targetYearGoal = Number((baselineYearData.totalEm * 0.812887).toFixed(3));
+      const isGoalMet = simulatedData.total <= targetYearGoal;
 
       return (
         <div className="space-y-8 font-sans">
@@ -1873,11 +1968,28 @@
                 <Icon name="compass" className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#1C1A17] tracking-tight font-display">대성스틸 2030 저탄소 중기 로드맵 & 감축 시뮬레이터</h2>
-                <p className="text-xs text-[#57534E] mt-0.5">환경부 2030 온실가스 감축 목표(NDC) 경로 추종 여부 판단 및 가상 에너지 효율화 시뮬레이션</p>
+                <h2 className="text-base sm:text-lg font-bold text-[#1C1A17] tracking-tight font-display">대성스틸 {baselineYear + 5} 저탄소 중기 로드맵 & 감축 시뮬레이터</h2>
+                <p className="text-xs text-[#57534E] mt-0.5">환경부 {baselineYear + 5} 온실가스 감축 목표(NDC) 경로 추종 여부 판단 및 가상 에너지 효율화 시뮬레이션</p>
               </div>
             </div>
-            <span className="text-xs bg-white px-3 py-1.5 text-[#1C1A17] font-mono border border-[#E5E2D9] font-bold">기준 연도: 2025년 (579.116 t)</span>
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#1C1A17]">기준 연도 설정:</span>
+                <select 
+                  value={baselineYear} 
+                  onChange={(e) => setBaselineYear(Number(e.target.value))}
+                  className="bg-white border border-[#1C1A17]/15 text-[#1C1A17] px-2 py-1 text-xs font-mono font-bold focus:outline-none"
+                >
+                  {availableYears.map(yr => (
+                    <option key={yr} value={yr}>{yr}년</option>
+                  ))}
+                </select>
+              </div>
+              <span className="text-xs bg-white px-3 py-1.5 text-[#1C1A17] font-mono border border-[#E5E2D9] font-bold">
+                기준 실적: {baselineYearData.totalEm.toFixed(3)} t
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -1914,7 +2026,7 @@
                   <Icon name="edit" className="w-5 h-5 text-[#1C1A17]" />
                   <h3 className="text-sm font-bold text-[#1C1A17] uppercase tracking-widest font-mono">저탄소 설비 시뮬레이션 레버</h3>
                 </div>
-                <p className="text-xs text-[#57534E] leading-relaxed">미래 저감 기술 도입률을 조정하여 2030년 목표 달성 가능 시나리오를 설계하십시오.</p>
+                <p className="text-xs text-[#57534E] leading-relaxed">미래 저감 기술 도입률을 조정하여 {baselineYear + 5}년 목표 달성 가능 시나리오를 설계하십시오.</p>
                 <hr className="border-[#FAF9F6]" />
 
                 {/* Slider 1 */}
@@ -1949,23 +2061,23 @@
               </div>
 
               {/* Outcome */}
-              <div className={`p-4 border rounded-none ${isGoalMetIn2030 ? 'bg-[#F0FDF4] border-[#86EFAC] text-[#166534]' : 'bg-[#FEF2F2] border-[#FCA5A5] text-[#991B1B]'}`}>
+              <div className={`p-4 border rounded-none ${isGoalMet ? 'bg-[#F0FDF4] border-[#86EFAC] text-[#166534]' : 'bg-[#FEF2F2] border-[#FCA5A5] text-[#991B1B]'}`}>
                 <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-widest mb-2.5 font-mono">
-                  <span>2030년 감축 예측 시나리오 결과</span>
+                  <span>{baselineYear + 5}년 감축 예측 시나리오 결과</span>
                 </div>
                 <div className="space-y-2 text-xs font-mono">
                   <div className="flex justify-between border-b border-[#1C1A17]/5 pb-1">
-                    <span className="text-[#78716C]">예측 배출량 (2030):</span>
+                    <span className="text-[#78716C]">예측 배출량 ({baselineYear + 5}):</span>
                     <span className="font-bold text-[#1C1A17]">{simulatedData.total.toFixed(3)} t</span>
                   </div>
                   <div className="flex justify-between border-b border-[#1C1A17]/5 pb-1">
-                    <span className="text-[#78716C]">국가 감축 목표치 (2030):</span>
-                    <span className="text-[#78716C]">470.756 t</span>
+                    <span className="text-[#78716C]">국가 감축 목표치 ({baselineYear + 5}):</span>
+                    <span className="text-[#78716C]">{targetYearGoal.toFixed(3)} t</span>
                   </div>
                   <div className="border-t border-[#1C1A17]/10 my-2 pt-2 flex justify-between items-center text-xs sm:text-sm">
                     <span className="font-bold">목표 달성 여부:</span>
-                    <span className={`font-bold px-2 py-0.5 border text-xs ${isGoalMetIn2030 ? 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]' : 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'}`}>
-                      {isGoalMetIn2030 ? '목표 달성 성공' : '감축 역량 부족'}
+                    <span className={`font-bold px-2 py-0.5 border text-xs ${isGoalMet ? 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]' : 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'}`}>
+                      {isGoalMet ? '목표 달성 성공' : '감축 역량 부족'}
                     </span>
                   </div>
                 </div>
@@ -1991,11 +2103,12 @@
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E2D9] font-mono text-[#1C1A17]">
-                  {ROADMAP_TARGETS.map((r, idx) => {
-                    const reductionPercent = idx === 0 ? 0 : ((579.116 - r.target) / 579.116) * 100;
+                  {roadmapTargets.map((r, idx) => {
+                    const baseTotal = baselineYearData.totalEm;
+                    const reductionPercent = idx === 0 ? 0 : ((baseTotal - r.target) / baseTotal) * 100;
                     return (
                       <tr key={r.year} className="hover:bg-white transition-colors">
-                        <td className="p-3 font-bold">{r.label} ({r.year}년)</td>
+                        <td className="p-3 font-bold">{r.label}</td>
                         <td className="p-3 font-bold">{r.target.toFixed(3)} t</td>
                         <td className="p-3 text-[#57534E]">{r.scope1 ? `${r.scope1.toFixed(3)} t` : '탄력적 분배'}</td>
                         <td className="p-3 text-[#57534E]">{r.scope2 ? `${r.scope2.toFixed(3)} t` : '탄력적 분배'}</td>
@@ -2368,7 +2481,7 @@
       const [cachedDb, setCachedDb] = useState(null);
 
       const handleTabChange = (tabId) => {
-        if (tabId === 'entry' || tabId === 'targets_tab') {
+        if (tabId === 'entry' || tabId === 'targets_tab' || tabId === 'roadmap') {
           if (!isAdminAuthenticated) {
             const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
             const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
@@ -2638,7 +2751,7 @@
             {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => handleTabChange('entry')} onRefresh={loadData} availableYears={availableYears} />}
             {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
             {activeTab === 'targets_tab' && <TargetSetting targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
-            {activeTab === 'roadmap' && <Roadmap records={records} />}
+            {activeTab === 'roadmap' && <Roadmap records={records} availableYears={availableYears} />}
           </main>
 
           {/* Footer */}
