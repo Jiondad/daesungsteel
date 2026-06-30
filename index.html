@@ -1759,7 +1759,12 @@
             {errorMessage && <p className="text-xs text-red-600 font-semibold">{errorMessage}</p>}
             {successMessage && <p className="text-xs text-green-700 font-semibold">{successMessage}</p>}
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex justify-end items-center gap-3 pt-2">
+              {isSaving && (
+                <span className="text-xs text-[#D97706] font-semibold animate-pulse mr-1">
+                  ⚡ 대성스틸 보안 서버에 고속 저장 중...
+                </span>
+              )}
               <button
                 type="submit"
                 onClick={handleSaveAll}
@@ -2277,7 +2282,12 @@
             {errorMessage && <p className="text-xs text-red-600 font-semibold">{errorMessage}</p>}
             {successMessage && <p className="text-xs text-green-700 font-semibold">{successMessage}</p>}
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex justify-end items-center gap-3 pt-2">
+              {isSaving && (
+                <span className="text-xs text-[#D97706] font-semibold animate-pulse mr-1">
+                  ⚡ 대성스틸 보안 서버에 고속 저장 중...
+                </span>
+              )}
               <button
                 type="submit"
                 onClick={handleSaveAll}
@@ -2355,6 +2365,7 @@
       const [isLoading, setIsLoading] = useState(false);
       const [isSaving, setIsSaving] = useState(false);
       const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+      const [cachedDb, setCachedDb] = useState(null);
 
       const handleTabChange = (tabId) => {
         if (tabId === 'entry' || tabId === 'targets_tab') {
@@ -2377,6 +2388,18 @@
       };
 
       const loadData = async (silent = false) => {
+        // 인메모리 캐시가 존재하는 경우, 서버 fetch 없이 즉시 메모리 데이터 로드 (딜레이 완전 제거)
+        if (cachedDb) {
+          const loadedYears = Array.isArray(cachedDb.availableYears) ? cachedDb.availableYears : [2026, 2025, 2024];
+          const loadedRecords = Array.isArray(cachedDb.records) ? cachedDb.records : [];
+          const loadedTargets = (cachedDb.targets && typeof cachedDb.targets === 'object') ? cachedDb.targets : {};
+          
+          setAvailableYears(loadedYears);
+          setRecords(loadedRecords);
+          setTargets(loadedTargets);
+          return;
+        }
+
         if (!silent) setIsLoading(true);
         try {
           const res = await fetch(GOOGLE_WEBAPP_URL, {
@@ -2388,6 +2411,9 @@
           if (responseJson && responseJson.result === "success" && responseJson.data) {
             const parsedState = JSON.parse(responseJson.data);
             
+            // 최초 로드 시 메모리에 통째로 캐싱
+            setCachedDb(parsedState);
+
             const loadedYears = Array.isArray(parsedState.availableYears) ? parsedState.availableYears : [2026, 2025, 2024];
             const loadedRecords = Array.isArray(parsedState.records) ? parsedState.records : [];
             const loadedTargets = (parsedState.targets && typeof parsedState.targets === 'object') ? parsedState.targets : {};
@@ -2414,20 +2440,22 @@
               defaultTargets[yr] = TARGETS_2026;
             });
 
+            const defaultState = {
+              availableYears: defaultYears,
+              records: flatRecords,
+              targets: defaultTargets
+            };
+
+            setCachedDb(defaultState);
             setAvailableYears(defaultYears);
             setRecords(flatRecords);
             setTargets(defaultTargets);
 
             // Auto-save the default state so Google Sheet is populated
-            const stateToSave = {
-              availableYears: defaultYears,
-              records: flatRecords,
-              targets: defaultTargets
-            };
             await fetch(GOOGLE_WEBAPP_URL, {
               method: "POST",
               headers: { "Content-Type": "text/plain" },
-              body: JSON.stringify({ action: "save", cellLocation: "A1", data: JSON.stringify(stateToSave) })
+              body: JSON.stringify({ action: "save", cellLocation: "A1", data: JSON.stringify(defaultState) })
             });
           }
         } catch (e) {
@@ -2459,6 +2487,8 @@
           });
           const result = await response.json();
           if (result && result.result === "success") {
+            // 저장 성공 시 로컬 인메모리 캐시도 즉시 동기화
+            setCachedDb(stateToSave);
             alert("대성스틸 공용 구글 DB에 안전하게 일괄 저장이 완료되었습니다!");
             return true;
           } else {
