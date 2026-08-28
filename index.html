@@ -65,6 +65,11 @@
       .print-avoid-break {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+        /* Small safety buffer: without this, a box that lands almost
+           exactly at the bottom print margin can have its border/shadow
+           get a hairline clipped off due to sub-pixel rounding when the
+           page is physically cut. This buffer keeps it clear of the edge. */
+        margin-bottom: 3mm !important;
       }
       
       /* Hide elements with print:hidden */
@@ -84,23 +89,83 @@
       }
 
       /* Formatting elements specifically for printing layout */
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+      }
       main {
+        max-width: 100% !important;
+        width: 100% !important;
         padding: 0 !important;
         margin: 0 !important;
       }
-      
+
       /* Grid adjustments to fit standard A4 margins */
       .grid {
         display: grid !important;
-        gap: 1.5rem !important;
+        gap: 1rem !important;
       }
-      
-      /* Table borders and padding for print */
+
+      /* Force specific grid containers to plain block stacking during
+         print. Chromium's print pagination for CSS Grid containers is
+         unreliable — it can leave a large blank gap before breaking to
+         the next page even when the following content would actually
+         fit in the remaining space. This class is applied (instead of
+         relying on print:block) specifically because it must be declared
+         AFTER the ".grid" rule above: both use !important on the same
+         "display" property, and with tied specificity the LAST rule in
+         the stylesheet wins the cascade — so ordering here is load-bearing.
+         Do not move this rule above ".grid". */
+      .print-stack {
+        display: block !important;
+      }
+
+      /* Tighten vertical rhythm so pages aren't wasted on excess whitespace */
+      .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 1.1rem !important;
+      }
+      .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 0.85rem !important;
+      }
+      .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 0.6rem !important;
+      }
+      .gap-8 { gap: 1rem !important; }
+      .gap-6 { gap: 0.75rem !important; }
+      .p-6 { padding: 0.6rem !important; }
+
+      /* Never orphan a heading at the bottom of a page */
+      h1, h2, h3, h4 {
+        page-break-after: avoid !important;
+        break-after: avoid-page !important;
+      }
+
+      /* Keep this element attached to whatever follows it — used for
+         section headings/descriptions that must not be separated from
+         the content (e.g. a table) that comes right after them. */
+      .print-keep-with-next {
+        page-break-after: avoid !important;
+        break-after: avoid-page !important;
+      }
+
+      /* Never split a single table row across a page boundary. Tables
+         themselves ARE allowed to break across pages (that's normal and
+         expected for long data tables) so the header row can repeat. */
       table {
         width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
         table-layout: fixed !important;
         border-collapse: collapse !important;
         page-break-inside: auto !important;
+        break-inside: auto !important;
+        font-size: 9px !important;
+      }
+      thead {
+        display: table-header-group !important;
+      }
+      tfoot {
+        display: table-footer-group !important;
       }
       tr {
         page-break-inside: avoid !important;
@@ -108,12 +173,23 @@
         page-break-after: auto !important;
       }
       th, td {
-        padding: 8px 10px !important;
+        padding: 5px 6px !important;
         border: 1px solid #1C1A17 !important;
         color: #000000 !important;
         background-color: transparent !important;
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+        word-break: keep-all !important;
       }
-      
+
+      /* Table wrappers must never clip or horizontally scroll content —
+         that's what was cutting columns off the right edge of the page. */
+      .overflow-x-auto {
+        overflow: visible !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+
       /* Card elements for print */
       .bg-white, .bg-\[\#FAF9F6\], .bg-\[\#FAF9F6\]\/50 {
         background-color: #ffffff !important;
@@ -122,15 +198,22 @@
 
       canvas {
         max-width: 100% !important;
-        height: auto !important;
-        max-height: 200px !important;
+        width: 100% !important;
+        height: 100% !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
 
       @page {
         size: A4;
-        margin: 20mm 15mm;
+        margin: 14mm 12mm;
+      }
+      /* The screen header/title block is tall enough on its own that the
+         first page doesn't need the full top margin on top of it — this
+         reclaims a bit more vertical room specifically on page 1 so more
+         content fits before the first page break. */
+      @page :first {
+        margin-top: 8mm;
       }
     }
   </style>
@@ -358,7 +441,7 @@
         };
       }, [data]);
 
-      return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
+      return <div className="h-80 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
     };
 
     const RevenueIntensityChart = ({ data }) => {
@@ -476,7 +559,7 @@
         };
       }, [data]);
 
-      return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
+      return <div className="h-80 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
     };
 
     const RoadmapSimulatorChart = ({ data }) => {
@@ -597,7 +680,7 @@
         };
       }, [data]);
 
-      return <div className="h-80 w-full"><canvas ref={canvasRef} /></div>;
+      return <div className="h-80 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
     };
 
     // --- COOPERATIVE ACHIEVEMENT DOUGHNUT CHART ---
@@ -873,7 +956,7 @@
       const renderMetricRow = (label, icon, value, target, unit, factor) => {
         const isExceeded = value > target;
         return (
-          <div className="bg-[#FAF9F6] border border-[#1C1A17]/15 p-4 sm:p-5 hover:border-[#1C1A17]/40 shadow-sm">
+          <div className="bg-[#FAF9F6] border border-[#1C1A17]/15 p-4 sm:p-5 hover:border-[#1C1A17]/40 shadow-sm print-avoid-break">
             <div className="flex flex-col justify-start items-start gap-1.5 mb-4">
               <div className="flex items-center gap-2.5 w-full">
                 <div className="p-2 bg-[#1C1A17] text-[#FAF9F6] shrink-0">
@@ -920,11 +1003,11 @@
       return (
         <div className="space-y-8 font-sans">
           {/* Print Official Header (Only visible when printing / PDF generation) */}
-          <div className="hidden print:block border-b-4 border-[#1C1A17] pb-5 mb-8">
+          <div className="hidden print:block border-b-4 border-[#1C1A17] pb-5 print:pb-2 mb-8 print:mb-3">
             <div className="flex justify-between items-end">
               <div>
                 <span className="text-[10px] text-[#78716C] font-mono tracking-widest block uppercase font-bold">CONFIDENTIAL — GHG EMISSIONS STANDARD REPORT</span>
-                <h1 className="text-3xl font-extrabold tracking-tight text-[#1C1A17] font-display mt-1">
+                <h1 className="text-3xl print:text-xl font-extrabold tracking-tight text-[#1C1A17] font-display mt-1">
                   (주)대성스틸 온실가스 인벤토리 공식 보고서
                 </h1>
                 <p className="text-xs text-[#57534E] font-mono mt-1">
@@ -932,25 +1015,25 @@
                 </p>
               </div>
               <div className="text-right">
-                <div className="w-14 h-14 bg-[#1C1A17] text-[#FAF9F6] flex items-center justify-center font-bold text-lg ml-auto mb-1">DS</div>
+                <div className="w-14 h-14 print:w-10 print:h-10 bg-[#1C1A17] text-[#FAF9F6] flex items-center justify-center font-bold text-lg ml-auto mb-1">DS</div>
                 <span className="text-[10px] text-[#78716C] font-semibold block">(주)대성스틸 안전환경본부</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4 mt-6 border-t border-[#1C1A17]/20 pt-4 text-[11px] font-sans">
-              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+            <div className="grid grid-cols-4 gap-4 print:gap-2 mt-6 print:mt-2 border-t border-[#1C1A17]/20 pt-4 print:pt-2 text-[11px] font-sans">
+              <div className="border border-[#1C1A17]/10 p-2 print:p-1 bg-[#FAF9F6]/50">
                 <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">보고 연도</span>
                 <strong className="text-[#1C1A17] text-xs font-mono">{selectedYear}년도</strong>
               </div>
-              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+              <div className="border border-[#1C1A17]/10 p-2 print:p-1 bg-[#FAF9F6]/50">
                 <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">설정 조회 기간</span>
                 <strong className="text-[#1C1A17] text-xs font-mono">{fromMonth}월 ~ {toMonth}월 (누적)</strong>
               </div>
-              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+              <div className="border border-[#1C1A17]/10 p-2 print:p-1 bg-[#FAF9F6]/50">
                 <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">검증 검인 표준</span>
                 <strong className="text-[#1C1A17] text-xs">IPCC / 국가 배출 계수 기준</strong>
               </div>
-              <div className="border border-[#1C1A17]/10 p-2 bg-[#FAF9F6]/50">
+              <div className="border border-[#1C1A17]/10 p-2 print:p-1 bg-[#FAF9F6]/50">
                 <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">문서 관리 코드</span>
                 <strong className="text-[#1C1A17] text-xs font-mono">DS-GHG-{selectedYear}-{String(fromMonth).padStart(2,'0')}{String(toMonth).padStart(2,'0')}</strong>
               </div>
@@ -1023,25 +1106,36 @@
           </div>
 
           {/* Single Integrated Performance Analysis Card */}
-          <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-6 print-avoid-break">
+          {/* NOTE: no print-avoid-break here on purpose — this block is tall
+              enough that forcing it to stay in one piece pushes it entirely
+              onto the next page and leaves a large blank gap on the
+              previous one. Instead, avoid-break is applied to each smaller
+              sub-section below so nothing splits mid-card, but the page can
+              still break naturally between them. The outer border/shadow is
+              also dropped for print (print:border-0 etc.) — the inner cards
+              already have their own borders, so when this outer box breaks
+              across a page it no longer leaves a dangling half-open edge
+              that looks like the content got cut off. */}
+          <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-6 print:border-0 print:shadow-none print:p-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#1C1A17]/10 pb-4">
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] uppercase tracking-wider font-display flex items-center gap-2">
-                  <Icon name="dashboard" className="w-5 h-5 text-[#1C1A17]" />
-                  {selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서 (Carbon Statement)
+                <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] uppercase tracking-wider font-display flex items-center gap-2 flex-wrap">
+                  <Icon name="dashboard" className="w-5 h-5 text-[#1C1A17] shrink-0" />
+                  <span className="whitespace-nowrap">{selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서</span>
+                  <span className="whitespace-nowrap">(Carbon Statement)</span>
                 </h3>
                 <p className="text-xs text-[#57534E] mt-0.5">선택한 조회 기간 동안의 온실가스 배출 실적 및 가이드라인 대비 달성 성과를 종합 분석합니다.</p>
               </div>
-              <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 py-1 text-xs font-mono">
-                <span className="text-[#78716C] uppercase font-bold text-[9px]">조회 범위 내 입력 완료:</span>
-                <span className="text-[#1C1A17] font-bold">{periodStats.activeMonthsCount} / {(toMonth - fromMonth + 1)} 개월</span>
+              <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 py-1 text-xs font-mono shrink-0">
+                <span className="text-[#78716C] uppercase font-bold text-[9px] whitespace-nowrap">조회 범위 내 입력 완료:</span>
+                <span className="text-[#1C1A17] font-bold whitespace-nowrap">{periodStats.activeMonthsCount} / {(toMonth - fromMonth + 1)} 개월</span>
               </div>
             </div>
 
             {periodStats.activeMonthsCount > 0 ? (
               <div className="space-y-6">
                 {/* 5 KPI Cards placed horizontally at the top */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 font-mono">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 print:grid-cols-3 gap-4 font-mono print-avoid-break">
                   <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                     <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">선택 기간 총 배출량</span>
                     <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
@@ -1073,7 +1167,13 @@
                 </div>
 
                 {/* Left: Doughnut Chart / Right: Actual vs Target Horizontal Bar Chart */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                {/* print:block (instead of staying a CSS grid) — Chromium's print
+                    pagination for grid containers is unreliable and can leave a
+                    large blank gap before breaking to the next page even when the
+                    next section would actually fit. A plain block stack (which
+                    looks identical here since print:grid-cols-1 already reduces
+                    this to one column) paginates correctly. */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-1 print-stack gap-6 print:space-y-4 items-stretch">
                   {/* Doughnut Chart Card (Left) */}
                   <div className="border border-[#1C1A17]/10 p-5 bg-[#FAF9F6] flex flex-col justify-between print-avoid-break">
                     <div>
@@ -1205,13 +1305,17 @@
           </div>
 
           {/* Details & Live calculations */}
+          {/* NOTE: avoid-break is intentionally NOT on this whole wrapper —
+              it's applied per-card inside renderMetricRow instead, so the
+              4 cards can flow across a page break without leaving a big
+              blank gap, while no single card ever splits in half. */}
           {periodStats.activeMonthsCount > 0 && (
-            <div className="space-y-4 print-avoid-break">
-              <h4 className="text-xs font-bold text-[#1C1A17] tracking-widest uppercase font-mono flex items-center gap-2">
-                <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
+            <div className="space-y-4">
+              <h4 className="text-sm sm:text-base font-bold text-[#1C1A17] tracking-widest uppercase font-mono flex items-center gap-2">
+                <Icon name="trend" className="w-5 h-5 text-[#1C1A17]" />
                 에너지 자원별 세부 KPI 분석 및 누출 관리 ({fromMonth}월 ~ {toMonth}월 누적)
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-2 gap-4">
                 {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualDiesel, periodStats.targetDiesel, 'L', EMISSION_FACTORS.diesel)}
                 {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualCityGas, periodStats.targetCityGas, 'Nm³', EMISSION_FACTORS.cityGas)}
                 {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, periodStats.actualElectricity, periodStats.targetElectricity, 'kWh', EMISSION_FACTORS.electricity)}
@@ -1221,14 +1325,16 @@
           )}
 
           {/* Graphical Trends */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Same fix as above: block instead of grid for print so Chromium's
+              pagination engine doesn't leave a blank gap before this section. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-1 print-stack gap-8 print:space-y-4">
             <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
-              <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
+              <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 print:mb-2 border-b pb-3 print:pb-1.5 border-[#FAF9F6]">
                 <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
                 {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 목표 대비 실제 총 온실가스 배출량 추이
               </h3>
               <MonthlyEmissionsChart data={chartData1} />
-              <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 justify-center">
+              <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 print:mt-2 justify-center">
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#D97706]" />실제 Scope 1</span>
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#2563EB]" />실제 Scope 2</span>
                 <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 border-t-2 border-[#DC2626]" />목표 배출량 (t)</span>
@@ -1236,12 +1342,12 @@
             </div>
 
             <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
-              <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 border-b pb-3 border-[#FAF9F6]">
+              <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 print:mb-2 border-b pb-3 print:pb-1.5 border-[#FAF9F6]">
                 <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
                 {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 매출액 대비 배출량(원단위) 추이
               </h3>
               <RevenueIntensityChart data={chartData2} />
-              <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 justify-center">
+              <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 print:mt-2 justify-center">
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#EAE6DD]" />월별 매출액 (억원)</span>
                 <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 border-t-2 border-[#10B981]" />배출 원단위 (tCO₂e/억원)</span>
               </div>
@@ -1250,7 +1356,11 @@
 
           {/* Raw Data Table Section */}
           <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#FAF9F6]">
+            {/* print-keep-with-next: without this, the heading+description
+                can get stranded alone at the bottom of a page while the
+                actual table starts fresh on the next page. This forces
+                them to move to the next page together instead. */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#FAF9F6] print-keep-with-next">
               <div>
                 <h3 className="text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display">
                   <Icon name="database" className="w-4 h-4 text-[#1C1A17]" />
