@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { YearPicker } from './YearPicker';
-import { calculateEmissions } from '../lib/emissions';
+import { calculateEmissions, isEntered } from '../lib/emissions';
 
 // --- DATA ENTRY COMPONENT ---
 export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onSaveTargets, onRefresh, availableYears = [2026, 2025, 2024], onRegisterYear, isSaving }) => {
@@ -52,7 +52,9 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
   useEffect(() => {
     const loadedInputs = Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
-      const existing = records.find(r => r.year === year && r.month === monthNum);
+      const found = records.find(r => r.year === year && r.month === monthNum);
+      // 실적이 입력되지 않은 달(전부 0/빈 값)은 0이 아니라 빈 칸으로 보여준다
+      const existing = found && isEntered(found) ? found : null;
       return {
         diesel: existing ? (existing.diesel !== undefined && existing.diesel !== null ? existing.diesel.toString() : '') : '',
         cityGas: existing ? (existing.cityGas !== undefined && existing.cityGas !== null ? existing.cityGas.toString() : '') : '',
@@ -85,7 +87,8 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
       const isBlank = (v) => v === '' || v === null || v === undefined;
 
       // 완전히 빈 달은 레코드를 만들지 않는다(미입력과 0을 구분, 입력 개월 수·연환산 왜곡 방지)
-      if ([row.diesel, row.cityGas, row.electricity, row.water, row.revenue].every(isBlank)) continue;
+      const isZeroOrBlank = (v) => isBlank(v) || Number(v) === 0;
+      if ([row.diesel, row.cityGas, row.electricity, row.water, row.revenue].every(isZeroOrBlank)) continue;
 
       // 값을 입력한 달은 핵심 3개 에너지를 모두 적어야 한다(사용량이 없으면 0을 직접 입력)
       const missing = [['경유', row.diesel], ['도시가스', row.cityGas], ['구매전력', row.electricity]]

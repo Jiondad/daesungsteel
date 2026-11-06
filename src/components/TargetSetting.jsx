@@ -180,6 +180,12 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
 
   if (editedTargets.length === 0) return null;
 
+  // 저장 전 월별 목표 합계와 공식 로드맵 목표의 차이 점검
+  const sumTarget = (k) => editedTargets.reduce((acc, t) => acc + (parseFloat(t[k]) || 0), 0);
+  const editedAnnualEm = calculateEmissions(sumTarget('diesel'), sumTarget('cityGas'), sumTarget('electricity'), selectedYear);
+  const officialTarget = resolveYearTarget(selectedYear);
+  const officialGap = officialTarget ? editedAnnualEm.total - officialTarget.total : null;
+
   return (
     <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#FAF9F6]">
@@ -335,9 +341,17 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
 
         <div className="bg-slate-50 border border-slate-200 p-4 text-sm text-slate-500 leading-relaxed flex items-start gap-2.5 rounded-md shadow-sm">
           <span className="text-base shrink-0">💡</span>
-          <p>
-            본 시스템의 가이드라인은 (주)대성스틸의 과거 2개년(2025~2026년) 실제 사용량 및 조업 데이터를 기반으로 산출된 '계절성 표준 베이스라인' 모델입니다. 연도별 국가 온실가스 감축 시나리오가 반영된 합리적인 기준점입니다.
-          </p>
+          <div className="space-y-1.5">
+            <p>
+              월별 목표는 사용자가 입력·저장한 값입니다. [자동 수립]으로 만든 경우 수립 방법, 기준 연도, 목표 출처가 함께 기록됩니다.
+            </p>
+            {officialGap !== null && Math.abs(officialGap) > 0.05 && (
+              <p className="font-semibold text-[#B45309]">
+                현재 월별 목표 합계 {formatVal(editedAnnualEm.total, 2)} t는 공식 로드맵 {selectedYear}년 목표 {formatVal(officialTarget.total, 2)} t와 {formatVal(Math.abs(officialGap), 2)} t 차이가 있습니다.
+                감사 대응을 위해 두 값을 일치시키거나 차이의 사유를 기록해 두세요.
+              </p>
+            )}
+          </div>
         </div>
 
         {errorMessage && <p className="text-xs text-red-600 font-semibold">{errorMessage}</p>}

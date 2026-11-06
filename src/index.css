@@ -188,3 +188,9 @@
       margin-top: 8mm;
     }
   }
+
+
+/* 한글 라벨이 글자 단위로 벌어져 보이지 않도록 Tailwind tracking 유틸리티 간격을 줄임 */
+.tracking-wide { letter-spacing: 0.01em; }
+.tracking-wider { letter-spacing: 0.025em; }
+.tracking-widest { letter-spacing: 0.04em; }

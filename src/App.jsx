@@ -241,7 +241,7 @@ export function App() {
       {/* Top Banner */}
       <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-2.5 text-center text-xs text-[#E5E2D9] font-mono flex items-center justify-center gap-2 print:hidden">
         <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse inline-block" />
-        <span className="tracking-wide">ANNUAL REPORT: 2026년 대성스틸 국가 온실가스 의무 감축 로드맵 준수 실적 평가 가동 중</span>
+        <span className="tracking-wide">ANNUAL REPORT: {new Date().getFullYear()}년 대성스틸 온실가스 배출량(Scope 1·2) 및 감축 목표 관리</span>
       </div>
 
       {loadError && (
@@ -262,7 +262,7 @@ export function App() {
                 <h1 className="text-xl font-bold tracking-tight text-[#1C1A17] font-display">(주)대성스틸 온실가스 인벤토리 시스템</h1>
                 <span className="text-[10px] bg-[#15803D]/10 text-[#15803D] border border-[#15803D]/20 px-2 py-0.5 font-semibold tracking-wider uppercase font-mono">CARBON INVENTORY</span>
               </div>
-              <p className="text-[11px] text-[#57534E] font-mono uppercase tracking-wider mt-0.5">Greenhouse Gas Management Portal — 2026</p>
+              <p className="text-[11px] text-[#57534E] font-mono uppercase tracking-wider mt-0.5">Greenhouse Gas Management Portal — {new Date().getFullYear()}</p>
             </div>
           </div>
 

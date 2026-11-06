@@ -6,6 +6,8 @@ import { MonthlyEmissionsChart } from './charts/MonthlyEmissionsChart';
 import { RevenueIntensityChart } from './charts/RevenueIntensityChart';
 import { TARGETS_2026 } from '../lib/constants';
 import { calculateEmissions, formatVal, getFactors, isEntered } from '../lib/emissions';
+import { buildSeasonalProfile, forecastAnnual } from '../lib/planning';
+import { computeAnnualTarget, computePeriodStats, pctDiff } from '../lib/period';
 
 export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh, availableYears = [2026, 2025, 2024] }) => {
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -80,67 +82,24 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
   const yearRecords = useMemo(() => records.filter(r => r.year === selectedYear && isEntered(r)), [records, selectedYear]);
 
   // Calculate period-specific stats (fromMonth to toMonth)
-  const periodStats = useMemo(() => {
-    let actualDiesel = 0;
-    let actualCityGas = 0;
-    let actualElectricity = 0;
-    let actualWater = 0;
-    let actualRevenue = 0;
+  const periodStats = useMemo(
+    () => computePeriodStats(yearRecords, yearTargets, fromMonth, toMonth, selectedYear),
+    [yearRecords, fromMonth, toMonth, yearTargets, selectedYear]
+  );
 
-    let targetDiesel = 0;
-    let targetCityGas = 0;
-    let targetElectricity = 0;
-    let targetWater = 0;
+  // 계절 보정 연말 예상(참고용 추정치)과 연간 목표
+  const forecast = useMemo(() => {
+    const profile = buildSeasonalProfile(records, { beforeYear: selectedYear, maxYears: 2 });
+    return forecastAnnual(records, selectedYear, profile);
+  }, [records, selectedYear]);
+  const annualTarget = useMemo(() => computeAnnualTarget(yearTargets, selectedYear), [yearTargets, selectedYear]);
 
-    let activeMonthsCount = 0;
-    const activeMonthsList = [];
-
-    for (let m = fromMonth; m <= toMonth; m++) {
-      const target = yearTargets[m - 1] || yearTargets[0] || TARGETS_2026[0];
-      const record = yearRecords.find(r => r.month === m);
-
-      // Sum target values for the selected months (to provide period aggregate guideline)
-      targetDiesel += target.diesel || 0;
-      targetCityGas += target.cityGas || 0;
-      targetElectricity += target.electricity || 0;
-      targetWater += target.water || 0;
-
-      if (record) {
-        actualDiesel += record.diesel || 0;
-        actualCityGas += record.cityGas || 0;
-        actualElectricity += record.electricity || 0;
-        actualWater += record.water || 0;
-        actualRevenue += record.revenue || 0;
-
-        activeMonthsCount++;
-        activeMonthsList.push(m);
-      }
-    }
-
-    const actualEm = calculateEmissions(actualDiesel, actualCityGas, actualElectricity, selectedYear);
-    const targetEm = calculateEmissions(targetDiesel, targetCityGas, targetElectricity, selectedYear);
-
-    return {
-      actualDiesel,
-      actualCityGas,
-      actualElectricity,
-      actualWater,
-      actualRevenue,
-      targetDiesel,
-      targetCityGas,
-      targetElectricity,
-      targetWater,
-      actualScope1: actualEm.scope1,
-      actualScope2: actualEm.scope2,
-      actualTotal: actualEm.total,
-      targetScope1: targetEm.scope1,
-      targetScope2: targetEm.scope2,
-      targetTotal: targetEm.total,
-      activeMonthsCount,
-      activeMonthsList,
-      intensity: actualRevenue > 0 ? (actualEm.total / actualRevenue) : 0
-    };
-  }, [yearRecords, fromMonth, toMonth, yearTargets]);
+  const signedPct = (v) => `${v >= 0 ? '+' : '−'}${formatVal(Math.abs(v), 1)}%`;
+  const monthsLabel = (list) => {
+    if (!list.length) return '';
+    const contiguous = list.every((m, i) => i === 0 || m === list[i - 1] + 1);
+    return contiguous ? (list.length === 1 ? `${list[0]}월` : `${list[0]}월~${list[list.length - 1]}월`) : `${list.join(', ')}월`;
+  };
 
   // Yearly stats (1 to 12) for the table footer
   const yearStats = useMemo(() => {
@@ -381,7 +340,14 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
               <span className="whitespace-nowrap">{selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서</span>
               <span className="whitespace-nowrap">(Carbon Statement)</span>
             </h3>
-            <p className="text-xs text-[#57534E] mt-0.5">선택한 조회 기간 동안의 온실가스 배출 실적 및 가이드라인 대비 달성 성과를 종합 분석합니다.</p>
+            <p className="text-xs text-[#57534E] mt-0.5">
+              선택한 조회 기간 동안의 온실가스 배출 실적을 같은 기간의 누적 목표와 비교합니다.
+              {periodStats.missingMonths.length > 0 && periodStats.activeMonthsCount > 0 && (
+                <span className="block text-[#B45309] font-semibold mt-0.5">
+                  미입력 {monthsLabel(periodStats.missingMonths)}은(는) 목표 누적에서 제외했습니다.
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 py-1 text-xs font-mono shrink-0">
             <span className="text-[#78716C] uppercase font-bold text-[9px] whitespace-nowrap">조회 범위 내 입력 완료:</span>
@@ -399,9 +365,12 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                 <span className="text-xs text-[#57534E] ml-1">t</span>
               </div>
               <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
-                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">선택 기간 목표 배출량</span>
+                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">동일 기간 누적 목표</span>
                 <span className="text-xl sm:text-2xl font-bold text-[#0D9488]">{formatVal(periodStats.targetTotal, 2)}</span>
                 <span className="text-xs text-[#78716C] ml-1">t</span>
+                <span className="text-[10px] text-[#78716C] block font-sans font-semibold mt-1 leading-tight">
+                  입력 {periodStats.activeMonthsCount}개월 기준 · 기간 전체 목표 {formatVal(periodStats.targetFullTotal, 2)} t
+                </span>
               </div>
               <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
                 <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 1 (직접)</span>
@@ -444,8 +413,12 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                   <AchievementDoughnutChart actual={periodStats.actualTotal} target={periodStats.targetTotal} />
                 </div>
                 <div className="flex justify-between text-[11px] text-[#78716C] font-mono border-t border-[#1C1A17]/10 pt-3">
-                  <span>지정 기간 목표 배출 총량:</span>
+                  <span>동일 기간({periodStats.activeMonthsCount}개월) 누적 목표:</span>
                   <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.targetTotal, 2)} t</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-[#78716C] font-mono pt-1.5">
+                  <span>기간 전체 목표 대비 현재 소진율:</span>
+                  <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.targetFullTotal > 0 ? (periodStats.actualTotal / periodStats.targetFullTotal) * 100 : 0, 1)}%</span>
                 </div>
               </div>
 
@@ -536,13 +509,22 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
               <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
-                <p className="text-[#57534E] mt-1">
-                  {periodStats.actualTotal > periodStats.targetTotal ? (
-                    <span className="text-[#991B1B] font-semibold">✖ 선택 기간({fromMonth}월~{toMonth}월)의 배출량 총합({formatVal(periodStats.actualTotal, 2)} t)이 기준 목표치({formatVal(periodStats.targetTotal, 2)} t)를 초과하였습니다. 효율 조치 및 감축 노력이 강력히 요구됩니다.</span>
-                  ) : (
-                    <span className="text-[#15803D] font-semibold">✔ 선택 기간({fromMonth}월~{toMonth}월)의 온실가스 실제 배출 총합({formatVal(periodStats.actualTotal, 2)} t)이 목표 가이드라인({formatVal(periodStats.targetTotal, 2)} t) 내에서 안정적으로 유지 및 통제되고 있습니다.</span>
+                <div className="text-[#57534E] mt-1 space-y-1.5">
+                  <p className={`font-semibold ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
+                    {periodStats.actualTotal > periodStats.targetTotal ? '✖' : '✔'} 입력된 {periodStats.activeMonthsCount}개월({monthsLabel(periodStats.activeMonthsList)})의 배출량 {formatVal(periodStats.actualTotal, 2)} t은 같은 기간 누적 목표 {formatVal(periodStats.targetTotal, 2)} t보다 {formatVal(Math.abs(periodStats.actualTotal - periodStats.targetTotal), 2)} t({signedPct(pctDiff(periodStats.actualTotal, periodStats.targetTotal))}) {periodStats.actualTotal > periodStats.targetTotal ? '많습니다.' : '적습니다.'}
+                  </p>
+                  <ul className="text-[11px] list-disc pl-4 space-y-0.5 font-mono">
+                    <li>Scope 1: 실적 {formatVal(periodStats.actualScope1, 2)} t / 목표 {formatVal(periodStats.targetScope1, 2)} t ({signedPct(pctDiff(periodStats.actualScope1, periodStats.targetScope1))})</li>
+                    <li>Scope 2: 실적 {formatVal(periodStats.actualScope2, 2)} t / 목표 {formatVal(periodStats.targetScope2, 2)} t ({signedPct(pctDiff(periodStats.actualScope2, periodStats.targetScope2))})</li>
+                  </ul>
+                  <p className="text-[11px] text-[#78716C]">Scope별로 증감 방향이 다를 수 있어 합계만으로 판단하지 말고 위 항목을 함께 확인하세요.</p>
+                  {fromMonth === 1 && toMonth === 12 && forecast && !forecast.complete && (
+                    <p className="text-[11px] text-[#57534E]">
+                      계절 보정 연말 예상(참고용 추정): {formatVal(forecast.total, 2)} t · 연간 목표 {formatVal(annualTarget.total, 2)} t 대비 {signedPct(pctDiff(forecast.total, annualTarget.total))}
+                      <span className="block text-[#78716C]">기준: {forecast.basisLabel}. 실적이 아닌 추정값입니다.</span>
+                    </p>
                   )}
-                </p>
+                </div>
               </div>
             </div>
 
@@ -841,10 +823,10 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
             </div>
             <div className="space-y-3 text-xs sm:text-sm text-[#57534E] leading-relaxed mb-6">
               <p>
-                현재 AI Studio 대화창의 <strong>Live Preview (Iframe)</strong> 환경에 접속해 계십니다. 브라우저 보안 정책에 따라 Iframe 내부에서는 직접 인쇄(window.print) 창 실행이 제한될 수 있습니다.
+                [보고서 출력]은 브라우저의 인쇄 창을 엽니다. 인쇄 대상(프린터)에서 <strong>PDF로 저장</strong>을 선택하면 PDF 파일로 저장할 수 있습니다.
               </p>
               <p className="font-semibold text-[#1C1A17] bg-[#FCFAF7] p-2.5 border-l-4 border-[#15803D]">
-                우측 상단의 "새 탭에서 열기" 아이콘을 클릭하여 대시보드를 새 창으로 여신 후 [보고서 출력] 버튼을 누르시면 PDF 저장 및 출력이 완벽하게 가동됩니다.
+                인쇄 창이 열리지 않으면 아래 [새 탭에서 열기]로 대시보드를 새 창에서 연 뒤 [보고서 출력]을 다시 눌러 주세요.
               </p>
             </div>
             <div className="flex gap-2">
