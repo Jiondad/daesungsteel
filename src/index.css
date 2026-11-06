@@ -1,0 +1,190 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== 기존 index.html 인라인 스타일(인쇄 CSS 포함)을 그대로 이관 ===== */
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background-color: #FAF9F6;
+    color: #1C1A17;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    background: #EAE6DD;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    background: #1C1A17;
+  }
+
+  /* Print-specific style adjustments for A4 Portrait */
+  @media print {
+    html, body {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      font-family: 'Noto Sans KR', sans-serif !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    /* Force exact color reproduction and clean lines */
+    * {
+      text-shadow: none !important;
+      box-shadow: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    /* Avoid elements breaking across pages */
+    .print-avoid-break {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      /* Small safety buffer: without this, a box that lands almost
+         exactly at the bottom print margin can have its border/shadow
+         get a hairline clipped off due to sub-pixel rounding when the
+         page is physically cut. This buffer keeps it clear of the edge. */
+      margin-bottom: 3mm !important;
+    }
+    
+    /* Hide elements with print:hidden */
+    .print\:hidden {
+      display: none !important;
+    }
+    
+    /* Display elements with print:block or print:flex */
+    .print\:block {
+      display: block !important;
+    }
+    .print\:flex {
+      display: flex !important;
+    }
+    .print\:grid {
+      display: grid !important;
+    }
+
+    /* Formatting elements specifically for printing layout */
+    html, body {
+      width: 100% !important;
+      height: auto !important;
+    }
+    main {
+      max-width: 100% !important;
+      width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* Grid adjustments to fit standard A4 margins */
+    .grid {
+      display: grid !important;
+      gap: 1rem !important;
+    }
+
+    /* Force specific grid containers to plain block stacking during
+       print. Chromium's print pagination for CSS Grid containers is
+       unreliable — it can leave a large blank gap before breaking to
+       the next page even when the following content would actually
+       fit in the remaining space. This class is applied (instead of
+       relying on print:block) specifically because it must be declared
+       AFTER the ".grid" rule above: both use !important on the same
+       "display" property, and with tied specificity the LAST rule in
+       the stylesheet wins the cascade — so ordering here is load-bearing.
+       Do not move this rule above ".grid". */
+    .print-stack {
+      display: block !important;
+    }
+
+    /* Tighten vertical rhythm so pages aren't wasted on excess whitespace */
+    .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 1.1rem !important;
+    }
+    .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0.85rem !important;
+    }
+    .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0.6rem !important;
+    }
+    .gap-8 { gap: 1rem !important; }
+    .gap-6 { gap: 0.75rem !important; }
+    .p-6 { padding: 0.6rem !important; }
+
+    /* Never orphan a heading at the bottom of a page */
+    h1, h2, h3, h4 {
+      page-break-after: avoid !important;
+      break-after: avoid-page !important;
+    }
+
+    /* Keep this element attached to whatever follows it — used for
+       section headings/descriptions that must not be separated from
+       the content (e.g. a table) that comes right after them. */
+    .print-keep-with-next {
+      page-break-after: avoid !important;
+      break-after: avoid-page !important;
+    }
+
+    /* Never split a single table row across a page boundary. Tables
+       themselves ARE allowed to break across pages (that's normal and
+       expected for long data tables) so the header row can repeat. */
+    table {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+      font-size: 9px !important;
+    }
+    thead {
+      display: table-header-group !important;
+    }
+    tfoot {
+      display: table-footer-group !important;
+    }
+    tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: auto !important;
+    }
+    th, td {
+      padding: 5px 6px !important;
+      border: 1px solid #1C1A17 !important;
+      color: #000000 !important;
+      background-color: transparent !important;
+      white-space: normal !important;
+      overflow-wrap: break-word !important;
+      word-break: keep-all !important;
+    }
+
+    /* Table wrappers must never clip or horizontally scroll content —
+       that's what was cutting columns off the right edge of the page. */
+    .overflow-x-auto {
+      overflow: visible !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    /* Card elements for print */
+    .bg-white, .bg-\[\#FAF9F6\], .bg-\[\#FAF9F6\]\/50 {
+      background-color: #ffffff !important;
+      border-color: #1C1A17 !important;
+    }
+
+    canvas {
+      max-width: 100% !important;
+      width: 100% !important;
+      height: 100% !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    @page {
+      size: A4;
+      margin: 14mm 12mm;
+    }
+    /* The screen header/title block is tall enough on its own that the
+       first page doesn't need the full top margin on top of it — this
+       reclaims a bit more vertical room specifically on page 1 so more
+       content fits before the first page break. */
+    @page :first {
+      margin-top: 8mm;
+    }
+  }
