@@ -3,7 +3,8 @@ import { Dashboard } from './components/Dashboard';
 import { DataEntry } from './components/DataEntry';
 import { Roadmap } from './components/Roadmap';
 import { TargetSetting } from './components/TargetSetting';
-import { TARGETS_2026 } from './lib/constants';
+import { PLAN_METHOD_START_YEAR, TARGETS_2026 } from './lib/constants';
+import { buildYearPlanTargets } from './lib/planning';
 import { loadDbResponse, saveDbState } from './services/db';
 
 export function App() {
@@ -214,13 +215,34 @@ export function App() {
     const nextYears = [...availableYears, yr].sort((a, b) => b - a);
     
     const nextRecords = [...records];
-    const nextTargets = { ...targets, [yr]: TARGETS_2026 };
+    let nextTargets;
+    let nextMeta = planMeta;
+    const now = new Date().toISOString();
 
-    const success = await handleSaveAll(nextYears, nextRecords, nextTargets);
+    if (yr < PLAN_METHOD_START_YEAR) {
+      // 기존 방식 유지(2026년 이하): 기본 월별 목표를 그대로 사용
+      nextTargets = { ...targets, [yr]: TARGETS_2026 };
+    } else {
+      // 2027년부터: 공식 로드맵 목표 + 계절 보정 자동 수립, 수립 근거를 함께 기록
+      const gen = buildYearPlanTargets(records, yr, { method: '연도 등록 시 계절 보정 자동 수립' });
+      if (gen) {
+        nextTargets = { ...targets, [yr]: gen.targets };
+        nextMeta = { ...planMeta, [yr]: { ...gen.meta, trigger: '연도 등록', savedAt: now } };
+      } else {
+        // 공식 로드맵 목표가 없는 연도: 직전 연도 목표를 복사하고 검토 필요 표시
+        const prevYears = Object.keys(targets).map(Number).filter((y) => y < yr).sort((a, b) => b - a);
+        const base = prevYears.length ? targets[prevYears[0]] : TARGETS_2026;
+        nextTargets = { ...targets, [yr]: base };
+        nextMeta = { ...planMeta, [yr]: { method: '직전 연도 목표 복사 (공식 로드맵 목표 없음)', needsReview: true, trigger: '연도 등록', savedAt: now } };
+      }
+    }
+
+    const success = await handleSaveAll(nextYears, nextRecords, nextTargets, nextMeta);
     if (success) {
       setAvailableYears(nextYears);
       setRecords(nextRecords);
       setTargets(nextTargets);
+      setPlanMeta(nextMeta);
       return yr;
     }
     return false;

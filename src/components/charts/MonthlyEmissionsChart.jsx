@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import { formatVal } from '../../lib/emissions';
+import { CHART_COLORS as C } from './chartColors';
 
-// --- CHART COMPONENTS USING RAW CHART.JS CANVAS ---
+// 월별 목표(회색 막대) vs 실적(Scope 1+2 누적 막대). 막대 위에 월별 달성률(%)을 표시하고,
+// 미입력 월은 0으로 그리지 않고 '미입력'으로 표시한다.
 export const MonthlyEmissionsChart = ({ data }) => {
   const canvasRef = useRef(null);
   const chartInstance = useRef(null);
@@ -12,105 +14,127 @@ export const MonthlyEmissionsChart = ({ data }) => {
     if (chartInstance.current) {
       chartInstance.current.destroy();
     }
-
     const ctx = canvasRef.current.getContext('2d');
 
-    // 은은한 그라디언트 생성
-    const scope1Grad = ctx.createLinearGradient(0, 0, 0, 300);
-    scope1Grad.addColorStop(0, '#14B8A6'); // Mint Teal
-    scope1Grad.addColorStop(1, '#0F766E'); // Deep Teal
-
-    const scope2Grad = ctx.createLinearGradient(0, 0, 0, 300);
-    scope2Grad.addColorStop(0, '#60A5FA'); // Light Slate Blue
-    scope2Grad.addColorStop(1, '#1E3A8A'); // Slate Blue / Navy
+    const overlay = {
+      id: 'monthlyOverlay',
+      beforeDatasetsDraw(chart) {
+        const { ctx: c, chartArea, scales } = chart;
+        if (!chartArea || !scales.x) return;
+        const band = chartArea.width / data.length;
+        c.save();
+        data.forEach((d, i) => {
+          if (d.entered) return;
+          const x = scales.x.getPixelForValue(i);
+          c.fillStyle = 'rgba(231, 229, 228, 0.55)';
+          c.fillRect(x - band / 2, chartArea.top, band, chartArea.height);
+          c.fillStyle = '#78716C';
+          c.font = '12px "Noto Sans KR", sans-serif';
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.fillText('미입력', x, chartArea.top + chartArea.height / 2);
+        });
+        c.restore();
+      },
+      afterDatasetsDraw(chart) {
+        const meta = chart.getDatasetMeta(2); // 실적 Scope 2 = 누적 막대의 맨 위
+        if (!meta || !meta.data) return;
+        const c = chart.ctx;
+        c.save();
+        c.font = 'bold 12px "Noto Sans KR", sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'bottom';
+        data.forEach((d, i) => {
+          const el = meta.data[i];
+          if (!d.entered || d.rate === null || !el) return;
+          c.fillStyle = d.rate > 100 ? C.over : C.ok;
+          c.fillText(`${formatVal(d.rate, 0)}%`, el.x, el.y - 6);
+        });
+        c.restore();
+      },
+    };
 
     chartInstance.current = new Chart(ctx, {
       type: 'bar',
+      plugins: [overlay],
       data: {
-        labels: data.map(d => `${d.month}월`),
+        labels: data.map((d) => `${d.month}월`),
         datasets: [
           {
-            label: '실제 Scope 1',
-            data: data.map(d => d.scope1),
-            backgroundColor: scope1Grad,
-            stack: 'actual',
-            borderRadius: 4,
-            order: 2
+            label: '월 목표',
+            data: data.map((d) => d.target),
+            backgroundColor: C.targetBar,
+            borderColor: C.targetBarBorder,
+            borderWidth: 1,
+            stack: 'target',
+            barPercentage: 0.9,
+            categoryPercentage: 0.8,
+            order: 2,
           },
           {
-            label: '실제 Scope 2',
-            data: data.map(d => d.scope2),
-            backgroundColor: scope2Grad,
+            label: '실적 Scope 1',
+            data: data.map((d) => d.scope1),
+            backgroundColor: C.scope1,
             stack: 'actual',
-            borderRadius: 4,
-            order: 2
+            barPercentage: 0.9,
+            categoryPercentage: 0.8,
+            order: 1,
           },
           {
-            label: '목표 배출량 (t)',
-            data: data.map(d => d.target),
-            borderColor: '#DC2626',
-            borderWidth: 3,
-            type: 'line',
-            fill: false,
-            tension: 0.15,
-            pointBackgroundColor: '#FFFFFF',
-            pointBorderColor: '#DC2626',
-            pointBorderWidth: 2.5,
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            order: 1
-          }
-        ]
+            label: '실적 Scope 2',
+            data: data.map((d) => d.scope2),
+            backgroundColor: C.scope2,
+            stack: 'actual',
+            barPercentage: 0.9,
+            categoryPercentage: 0.8,
+            order: 1,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        layout: { padding: { top: 22 } },
         plugins: {
-          legend: {
-            display: false
-          },
+          legend: { display: false },
           tooltip: {
             backgroundColor: '#1C1A17',
-            titleFont: { family: 'Noto Sans KR', size: 12, weight: 'bold' },
-            bodyFont: { family: 'Noto Sans KR', size: 11 },
+            titleFont: { family: 'Noto Sans KR', size: 13, weight: 'bold' },
+            bodyFont: { family: 'Noto Sans KR', size: 12 },
             padding: 10,
             cornerRadius: 4,
-            displayColors: true,
             callbacks: {
-              label: function(context) {
-                return ` ${context.dataset.label}: ${formatVal(context.raw, 2)} t`;
-              }
-            }
-          }
+              title: (items) => `${data[items[0].dataIndex].month}월`,
+              label: (item) => ` ${item.dataset.label}: ${formatVal(item.raw, 2)} t`,
+              afterBody: (items) => {
+                const d = data[items[0].dataIndex];
+                if (!d.entered) return ['실적 미입력'];
+                return [
+                  `실적 합계: ${formatVal(d.actual, 2)} t`,
+                  `월 목표: ${formatVal(d.target, 2)} t`,
+                  `달성률: ${formatVal(d.rate, 1)}% (${d.rate > 100 ? '목표 초과' : '목표 이내'})`,
+                ];
+              },
+            },
+          },
         },
         scales: {
           x: {
             stacked: true,
-            grid: {
-              color: '#FAF9F6',
-              borderDash: [4, 4],
-              drawTicks: false
-            },
-            ticks: {
-              font: { family: 'Noto Sans KR', size: 11 }
-            },
-            border: { display: false }
+            grid: { display: false },
+            ticks: { font: { family: 'Noto Sans KR', size: 12 }, color: C.axisText },
+            border: { color: C.grid },
           },
           y: {
             stacked: true,
-            grid: {
-              color: '#EAE6DD',
-              borderDash: [4, 4],
-              drawTicks: false
-            },
-            ticks: {
-              font: { family: 'JetBrains Mono', size: 11 }
-            },
-            title: { display: true, text: 'tCO₂e', font: { family: 'Noto Sans KR', size: 11 } },
-            border: { display: false }
-          }
-        }
-      }
+            beginAtZero: true,
+            grid: { color: C.grid },
+            ticks: { font: { family: 'JetBrains Mono', size: 11 }, color: C.axisText },
+            title: { display: true, text: 'tCO₂e', font: { family: 'Noto Sans KR', size: 12 }, color: C.axisText },
+            border: { display: false },
+          },
+        },
+      },
     });
 
     return () => {
@@ -122,4 +146,3 @@ export const MonthlyEmissionsChart = ({ data }) => {
 
   return <div className="h-80 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
 };
-

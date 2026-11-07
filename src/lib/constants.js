@@ -63,3 +63,9 @@ export const ROADMAP_BASELINE_ACTIVITY = { diesel: 4847.561, cityGas: 37576.327,
 
 export const GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwjl3TGSLMD7e3R7MwO14rYuX_7JKZaSXX_Rd5Jf25hGrovGNX4YD4mUroBiE9UbRcJ/exec";
 
+
+// 목표 수립 방식 적용 시작 연도.
+// 이 연도부터는 '공식 로드맵 목표 + 계절 보정 자동 수립'을 적용할 수 있고(연도 등록 시 자동 생성),
+// 그 이전 연도는 기존 방식(저장된 월별 목표를 그대로 유지)을 따른다.
+// ※ 값만 바꾸면 적용 시점이 바뀐다. 이미 저장된 목표는 관리자가 [자동 수립]→[저장]하기 전까지 바뀌지 않는다.
+export const PLAN_METHOD_START_YEAR = 2026;

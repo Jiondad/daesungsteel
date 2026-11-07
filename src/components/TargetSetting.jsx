@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { YearPicker } from './YearPicker';
-import { DAESUNG_SEASONAL_TARGETS, TARGETS_2026 } from '../lib/constants';
-import { calculateEmissions, formatVal } from '../lib/emissions';
+import { DAESUNG_SEASONAL_TARGETS, PLAN_METHOD_START_YEAR, TARGETS_2026 } from '../lib/constants';
+import { calculateEmissions, formatVal, isEntered } from '../lib/emissions';
 import { buildSeasonalProfile, generateMonthlyPlan, resolveYearTarget } from '../lib/planning';
 
 export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, availableYears = [2026, 2025, 2024], onRegisterYear, isSaving, planMeta = {} }) => {
@@ -17,17 +17,37 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
   const [planYears, setPlanYears] = useState(2);
   const [planPreview, setPlanPreview] = useState(null);
   const [draftMeta, setDraftMeta] = useState(null);
+  const [keepEntered, setKeepEntered] = useState(true);
+  const [planReason, setPlanReason] = useState('');
 
   useEffect(() => {
     const t = resolveYearTarget(selectedYear);
     setPlanS1(t ? t.scope1.toFixed(3) : '');
     setPlanS2(t ? t.scope2.toFixed(3) : '');
-    setPlanSource(t ? (t.assumed ? 'Scope별 공식 목표 미확정 — 최근 확정 연도의 Scope 비율로 배분(가정)' : '공식 로드맵 목표') : '공식 로드맵 목표 없음 — 직접 입력');
+    setPlanSource(selectedYear < PLAN_METHOD_START_YEAR
+      ? `${PLAN_METHOD_START_YEAR}년 이전은 기존 목표 유지 (아래 값은 참고용 공식 로드맵 목표)`
+      : (t ? (t.assumed ? 'Scope별 공식 목표 미확정 — 최근 확정 연도의 Scope 비율로 배분(가정)' : '공식 로드맵 목표') : '공식 로드맵 목표 없음 — 직접 입력'));
     setDraftMeta(null);
     setPlanPreview(null);
+    // 방식 적용 첫 해에는 적용 사유를 미리 채워 두고(수정 가능), 그 외 연도는 비워 둔다
+    setPlanReason(selectedYear === PLAN_METHOD_START_YEAR
+      ? `${PLAN_METHOD_START_YEAR}년 실적 보고 전이므로 공식 로드맵 기준 목표 수립 방식을 ${PLAN_METHOD_START_YEAR}년부터 적용`
+      : '');
   }, [selectedYear]);
 
+  // 해당 연도에 실적이 입력된 달(기존 목표를 유지할 후보)
+  const enteredMonths = records.filter(r => r.year === selectedYear && isEntered(r)).map(r => r.month).sort((a, b) => a - b);
+
   const handleAutoPlan = () => {
+    if (selectedYear < PLAN_METHOD_START_YEAR) {
+      setErrorMessage(`${PLAN_METHOD_START_YEAR}년 이전 연도는 기존 목표를 유지합니다. 자동 수립은 ${PLAN_METHOD_START_YEAR}년부터 사용할 수 있습니다.`);
+      return;
+    }
+    // 이미 저장된 목표를 바꾸는 경우 사유를 반드시 남긴다(감사 기록)
+    if (targets && targets[selectedYear] && !planReason.trim()) {
+      setErrorMessage('기존 목표를 변경하는 경우 적용·변경 사유를 입력해주세요(감사 기록용).');
+      return;
+    }
     const s1 = parseFloat(planS1);
     const s2 = parseFloat(planS2);
     if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
@@ -35,7 +55,15 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
       return;
     }
     const profile = buildSeasonalProfile(records, { beforeYear: selectedYear, maxYears: planYears });
-    const plan = generateMonthlyPlan(profile, selectedYear, s1, s2);
+    // 실적이 입력된 달의 기존 목표는 유지하고 남은 달만 재배분(소급 변경 방지)
+    const locked = {};
+    if (keepEntered) {
+      enteredMonths.forEach((m) => {
+        const t = editedTargets[m - 1] || {};
+        locked[m] = { diesel: parseFloat(t.diesel) || 0, cityGas: parseFloat(t.cityGas) || 0, electricity: parseFloat(t.electricity) || 0, water: parseFloat(t.water) || 0 };
+      });
+    }
+    const plan = generateMonthlyPlan(profile, selectedYear, s1, s2, locked);
     setEditedTargets(prev => prev.map((t, i) => ({
       ...t,
       diesel: String(plan.months[i].diesel),
@@ -45,9 +73,19 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
     })));
     const sum = (k) => plan.months.reduce((a, m) => a + m[k], 0);
     const em = calculateEmissions(sum('diesel'), sum('cityGas'), sum('electricity'), selectedYear);
-    setPlanPreview({ label: profile.label, basis: profile.basis, scope1: em.scope1, scope2: em.scope2, total: em.total, targetTotal: s1 + s2 });
+    const overrunKeys = Object.keys(plan.overrun || {}).filter(k => plan.overrun[k]);
+    const keyName = { diesel: '경유', cityGas: '도시가스', electricity: '전력', water: '수도' };
+    setPlanPreview({
+      label: profile.label, basis: profile.basis, scope1: em.scope1, scope2: em.scope2, total: em.total, targetTotal: s1 + s2,
+      lockedMonths: plan.lockedMonths,
+      overrun: overrunKeys.map(k => keyName[k]),
+    });
     setDraftMeta({
-      method: '계절 보정 자동 수립 (에너지원별 월 비중 × 연간 목표)',
+      method: plan.lockedMonths.length > 0
+        ? '계절 보정 자동 수립 (입력된 달의 기존 목표 유지, 남은 달만 재배분)'
+        : '계절 보정 자동 수립 (에너지원별 월 비중 × 연간 목표)',
+      lockedMonths: plan.lockedMonths,
+      reason: planReason.trim(),
       seasonalBasis: profile.label,
       basisType: profile.basis,
       usedYears: profile.usedYears,
@@ -91,7 +129,9 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
       if (onRegisterYear) {
         onRegisterYear(newYear);
       }
-      alert(newYear + "년이 성공적으로 등록되었습니다. 실적과 목표를 입력해주세요.");
+      alert(newYear + (newYear >= PLAN_METHOD_START_YEAR
+        ? "년이 등록되었습니다. 목표는 공식 로드맵 기준으로 자동 수립되었으니 검토 후 필요하면 수정하세요."
+        : "년이 성공적으로 등록되었습니다. 실적과 목표를 입력해주세요."));
     } else {
       alert("이미 등록된 연도입니다.");
     }
@@ -234,13 +274,36 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
             <select value={planYears} onChange={(e) => setPlanYears(Number(e.target.value))} className="w-full bg-white border border-[#E5E2D9] px-2 py-1.5">
               <option value={1}>직전 1개년</option><option value={2}>최근 2개년 평균</option><option value={3}>최근 3개년 평균</option>
             </select></label>
-          <button type="button" onClick={handleAutoPlan} className="px-3 py-2 bg-[#1C1A17] hover:bg-[#1C1A17]/85 text-[#FAF9F6] text-xs font-bold cursor-pointer">자동 수립 (초안 생성)</button>
+          <button type="button" onClick={handleAutoPlan} disabled={selectedYear < PLAN_METHOD_START_YEAR} className="px-3 py-2 bg-[#1C1A17] hover:bg-[#1C1A17]/85 text-[#FAF9F6] text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">자동 수립 (초안 생성)</button>
         </div>
         <div className="text-[11px] text-[#78716C]">목표 출처: {planSource}</div>
+        <label className="block text-xs space-y-1">
+          <span className="block font-bold text-[#57534E]">적용·변경 사유 (감사 기록용)</span>
+          <input type="text" value={planReason} onChange={(e) => setPlanReason(e.target.value)} placeholder="예: 보고 전 기준 정비 / 공식 로드맵 목표 반영"
+            className="w-full bg-white border border-[#E5E2D9] px-2 py-1.5" />
+        </label>
+        {selectedYear >= PLAN_METHOD_START_YEAR && enteredMonths.length > 0 && (
+          <label className="flex items-start gap-2 text-[11px] text-[#1C1A17] leading-relaxed cursor-pointer">
+            <input type="checkbox" checked={keepEntered} onChange={(e) => setKeepEntered(e.target.checked)} className="mt-0.5" />
+            <span>
+              실적이 입력된 {enteredMonths.length}개월의 기존 목표는 유지하고, 남은 달만 재배분합니다 <span className="text-[#78716C]">(연중 적용 시 권장 — 이미 비교·보고한 기간의 목표를 소급해서 바꾸지 않음)</span>
+            </span>
+          </label>
+        )}
+        <div className="text-[11px] text-[#57534E] bg-white border border-[#E5E2D9] p-2.5 leading-relaxed">
+          <span className="font-bold">적용 기준:</span> {PLAN_METHOD_START_YEAR - 1}년까지는 기존 월별 목표를 그대로 유지하고, {PLAN_METHOD_START_YEAR}년부터는 공식 로드맵 목표를 계절 패턴으로 배분해 수립합니다(새 연도 등록 시 자동 생성, 수립 근거 기록).
+          {selectedYear < PLAN_METHOD_START_YEAR && <span className="block text-[#B45309] font-semibold mt-0.5">{selectedYear}년은 기존 목표 유지 대상이라 자동 수립 버튼이 비활성화됩니다.</span>}
+        </div>
         {planPreview && (
           <div className="text-[11px] text-[#1C1A17] bg-white border border-[#E5E2D9] p-3 leading-relaxed">
             <div>초안 합계: Scope 1 {formatVal(planPreview.scope1, 3)} t / Scope 2 {formatVal(planPreview.scope2, 3)} t / 합계 {formatVal(planPreview.total, 3)} t (입력 목표 {formatVal(planPreview.targetTotal, 3)} t, 정수 반올림 차이 포함)</div>
             <div className="text-[#57534E]">계절 패턴: {planPreview.label}</div>
+            {planPreview.lockedMonths && planPreview.lockedMonths.length > 0 && (
+              <div className="text-[#57534E]">기존 목표 유지: {planPreview.lockedMonths.join(', ')}월 · 나머지 달만 재배분</div>
+            )}
+            {planPreview.overrun && planPreview.overrun.length > 0 && (
+              <div className="text-[#B91C1C] font-bold">유지한 달의 목표 합계가 이미 연간 목표를 넘어 남은 달 {planPreview.overrun.join('·')} 목표를 0으로 처리했습니다. 연간 목표나 유지 범위를 점검하세요.</div>
+            )}
             {planPreview.basis === 'kpi_master' && (
               <div className="text-[#B91C1C] font-bold">12개월이 모두 입력된 실적 연도가 없어 KPI 마스터 패턴을 사용했습니다. 실적이 쌓이면 다시 수립하세요.</div>
             )}
@@ -252,6 +315,7 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
             {planMeta[selectedYear].scope1Target != null && ` · 목표 S1 ${formatVal(planMeta[selectedYear].scope1Target, 1)} / S2 ${formatVal(planMeta[selectedYear].scope2Target, 1)} t`}
             {planMeta[selectedYear].savedAt && ` · ${String(planMeta[selectedYear].savedAt).slice(0, 10)} 저장`}
             {planMeta[selectedYear].manuallyEdited && ' · 자동 수립 후 수동 수정됨'}
+            {planMeta[selectedYear].reason && ` · 사유: ${planMeta[selectedYear].reason}`}
             {planMeta[selectedYear].modifiedAfterPlan && ' · 저장 이후 수동 변경됨'}
           </div>
         )}
@@ -345,8 +409,14 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
             <p>
               월별 목표는 사용자가 입력·저장한 값입니다. [자동 수립]으로 만든 경우 수립 방법, 기준 연도, 목표 출처가 함께 기록됩니다.
             </p>
-            {officialGap !== null && Math.abs(officialGap) > 0.05 && (
-              <p className="font-semibold text-[#B45309]">
+            {officialGap !== null && Math.abs(officialGap) > 0.05 && selectedYear < PLAN_METHOD_START_YEAR && (
+          <p className="font-semibold text-[#57534E]">
+            참고: 현재 월별 목표 합계 {formatVal(editedAnnualEm.total, 2)} t는 공식 로드맵 {selectedYear}년 목표 {formatVal(officialTarget.total, 2)} t와 {formatVal(Math.abs(officialGap), 2)} t 차이가 있습니다.
+            {PLAN_METHOD_START_YEAR - 1}년까지는 기존 목표를 유지하므로 별도 조치는 필요 없으며, 감사 시 이 차이와 적용 기준(방식 변경 시점)을 설명할 수 있도록 기록해 두세요.
+          </p>
+        )}
+        {officialGap !== null && Math.abs(officialGap) > 0.05 && selectedYear >= PLAN_METHOD_START_YEAR && (
+          <p className="font-semibold text-[#B45309]">
                 현재 월별 목표 합계 {formatVal(editedAnnualEm.total, 2)} t는 공식 로드맵 {selectedYear}년 목표 {formatVal(officialTarget.total, 2)} t와 {formatVal(Math.abs(officialGap), 2)} t 차이가 있습니다.
                 감사 대응을 위해 두 값을 일치시키거나 차이의 사유를 기록해 두세요.
               </p>

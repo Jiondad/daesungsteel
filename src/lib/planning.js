@@ -64,7 +64,9 @@ export function resolveYearTarget(year) {
 }
 
 // 연간 Scope 1·2 목표(tCO2e) → 에너지원별 월별 사용량 계획
-export function generateMonthlyPlan(profile, year, scope1Target, scope2Target) {
+// locked: { [월]: {diesel, cityGas, electricity, water} } — 이미 보고·입력된 달의 기존 목표를 그대로 두고,
+//         연간 목표에서 그 합계를 뺀 나머지를 남은 달에 계절 비중으로 재배분한다(소급 변경 방지).
+export function generateMonthlyPlan(profile, year, scope1Target, scope2Target, locked = {}) {
   const f = getFactors(year);
   const dE = (profile.annual.diesel || 0) * f.diesel;
   const gE = (profile.annual.cityGas || 0) * f.cityGas;
@@ -75,11 +77,26 @@ export function generateMonthlyPlan(profile, year, scope1Target, scope2Target) {
     electricity: scope2Target / f.electricity,
     water: profile.annual.water || 0,
   };
+  const lockedMonths = Object.keys(locked).map(Number).filter((m) => m >= 1 && m <= 12).sort((a, b) => a - b);
+  const freeMonths = Array.from({ length: 12 }, (_, i) => i + 1).filter((m) => !lockedMonths.includes(m));
   const months = Array.from({ length: 12 }, () => ({}));
-  PLAN_KEYS.forEach(k => {
-    allocateMonthly(annual[k], profile.shares[k]).forEach((v, i) => { months[i][k] = v; });
+  const overrun = {};
+
+  PLAN_KEYS.forEach((k) => {
+    if (lockedMonths.length === 0) {
+      allocateMonthly(annual[k], profile.shares[k]).forEach((v, i) => { months[i][k] = v; });
+      return;
+    }
+    const lockedSum = lockedMonths.reduce((acc, m) => acc + (Number(locked[m][k]) || 0), 0);
+    lockedMonths.forEach((m) => { months[m - 1][k] = Number(locked[m][k]) || 0; });
+    if (freeMonths.length === 0) { overrun[k] = lockedSum > annual[k]; return; }
+    const residual = annual[k] - lockedSum;
+    if (residual < 0) overrun[k] = true; // 유지한 달의 목표 합계가 이미 연간 목표를 초과
+    const shareSum = freeMonths.reduce((acc, m) => acc + profile.shares[k][m - 1], 0);
+    const freeShares = freeMonths.map((m) => (shareSum > 0 ? profile.shares[k][m - 1] / shareSum : 1 / freeMonths.length));
+    allocateMonthly(Math.max(0, residual), freeShares).forEach((v, idx) => { months[freeMonths[idx] - 1][k] = v; });
   });
-  return { months, annual, dieselShare };
+  return { months, annual, dieselShare, lockedMonths, overrun };
 }
 
 // 연말 예상 배출량: 입력된 달의 실적을 계절 비중으로 역산(연환산). 12개월 완비 시 실적 그대로.
@@ -102,3 +119,27 @@ export function forecastAnnual(records, year, profile) {
   return { months: entered.length, complete: entered.length === 12, est, lowCoverage, ...em, basisLabel: profile.label };
 }
 
+
+// 연도 등록 시 사용: 공식 로드맵 목표를 계절 프로파일로 12개월에 배분한 목표와 수립 근거(meta)를 만든다.
+// 공식 목표가 없는 연도는 null.
+export function buildYearPlanTargets(records, year, opts = {}) {
+  const t = resolveYearTarget(year);
+  if (!t) return null;
+  const profile = buildSeasonalProfile(records, { beforeYear: year, maxYears: opts.maxYears || 2 });
+  const plan = generateMonthlyPlan(profile, year, t.scope1, t.scope2);
+  const targets = plan.months.map((m) => ({ diesel: m.diesel, cityGas: m.cityGas, electricity: m.electricity, water: m.water }));
+  const meta = {
+    method: opts.method || '계절 보정 자동 수립 (에너지원별 월 비중 × 연간 목표)',
+    seasonalBasis: profile.label,
+    basisType: profile.basis,
+    usedYears: profile.usedYears,
+    scope1Target: t.scope1,
+    scope2Target: t.scope2,
+    targetSource: t.assumed ? 'Scope별 공식 목표 미확정 — 최근 확정 연도의 Scope 비율로 배분(가정)' : '공식 로드맵 목표',
+    dieselShareOfScope1: plan.dieselShare,
+    factorYear: year,
+    generatedAt: new Date().toISOString(),
+    manuallyEdited: false,
+  };
+  return { targets, meta };
+}

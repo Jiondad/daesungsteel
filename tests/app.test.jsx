@@ -207,3 +207,136 @@ describe('실적 입력: 예전 방식으로 저장된 0 레코드 정리', () =
     expect(months).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 });
+
+describe('목표 수립 방식 적용(2026년부터)', () => {
+  it('2026년: 입력된 1~9월 목표는 유지하고 남은 달만 재배분해 연간 목표를 공식 로드맵에 맞춘다', async () => {
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    clickBtn('목표 설정');
+    await screen.findByText(/계절 보정 연간 계획 자동 수립/);
+    expect(screen.getByText(/실적이 입력된 9개월의 기존 목표는 유지/)).toBeTruthy();
+    clickBtn('자동 수립');
+    await screen.findByText(/초안 합계/);
+    expect(document.body.textContent).toMatch(/기존 목표 유지: 1, 2, 3, 4, 5, 6, 7, 8, 9월/);
+    fireEvent.submit([...document.querySelectorAll('form')].pop());
+    await waitFor(() => expect(saves.length).toBe(1));
+    const saved = saves[0].targets[2026];
+    T26.slice(0, 9).forEach((t, i) => {
+      expect(saved[i].diesel).toBe(t.diesel);
+      expect(saved[i].electricity).toBe(t.electricity);
+    });
+    const elec = saved.reduce((a, t) => a + t.electricity, 0);
+    expect(elec).toBe(Math.round(462.076 / 0.0004594));
+    expect(saves[0].planMeta[2026].lockedMonths).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(saves[0].planMeta[2026].method).toMatch(/기존 목표 유지/);
+    expect(saves[0].planMeta[2026].reason).toMatch(/보고 전/);
+  });
+
+  it('이미 저장된 목표를 바꿀 때 사유가 비어 있으면 수립을 막는다', async () => {
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    clickBtn('목표 설정');
+    await screen.findByText(/계절 보정 연간 계획 자동 수립/);
+    fireEvent.change(screen.getByLabelText(/적용·변경 사유/), { target: { value: '' } });
+    clickBtn('자동 수립');
+    await screen.findByText(/사유를 입력해주세요/);
+    expect(document.body.textContent).not.toMatch(/초안 합계/);
+    expect(saves.length).toBe(0);
+  });
+
+  it('새 연도(2027) 등록 시 2026년 목표는 그대로 두고, 2027 목표는 공식 로드맵 기준으로 자동 수립·기록된다', async () => {
+    mockServer(okLoad(realisticDb()));
+    window.prompt.mockImplementation((msg) => (String(msg).includes('등록하실') ? '2027' : pinFromSource()));
+    render(<App />);
+    await loaded();
+    clickBtn('목표 설정');
+    await screen.findByText(/계절 보정 연간 계획 자동 수립/);
+    clickBtn('새 연도 등록');
+    await waitFor(() => expect(saves.length).toBe(1));
+    const d = saves[0];
+    expect(d.availableYears).toContain(2027);
+    const sum = (k) => d.targets[2027].reduce((a, t) => a + t[k], 0);
+    const total = sum('diesel') * 0.002624 + sum('cityGas') * 0.002129 + sum('electricity') * 0.0004594;
+    expect(total).toBeCloseTo(542.395, 1);
+    expect(d.targets[2026]).toEqual(T26);
+    expect(d.planMeta[2027].trigger).toBe('연도 등록');
+    expect(d.planMeta[2027].targetSource).toMatch(/미확정/);
+  });
+});
+
+import { CHART_COLORS } from '../src/components/charts/chartColors';
+
+describe('대시보드 구성: 목표 → 실적 → 달성률 순서와 그래프', () => {
+  const cssColor = (hex) => { const el = document.createElement('span'); el.style.backgroundColor = hex; return el.style.backgroundColor; };
+
+  it('상단은 목표 → 실적 → 달성률 순서이고, 달성 현황이 에너지 KPI·그래프보다 먼저 나온다', async () => {
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    await waitFor(() => expect(document.body.textContent).toMatch(/목표 대비 달성 현황/));
+    const text = document.body.textContent;
+    const i1 = text.indexOf('① 목표 (동일 기간 누적)');
+    const i2 = text.indexOf('② 실적 (총 배출량)');
+    const i3 = text.indexOf('③ 달성률');
+    expect(i1).toBeGreaterThan(-1);
+    expect(i1).toBeLessThan(i2);
+    expect(i2).toBeLessThan(i3);
+    expect(text).toMatch(/102\.5%/);
+    expect(within(screen.getByTestId('scope-card-s2')).getByText(/112\.2%/)).toBeTruthy();
+    expect(within(screen.getByTestId('scope-card-s1')).getByText(/63\.6%/)).toBeTruthy();
+    const iSummary = text.indexOf('목표 대비 달성 현황');
+    const iAnalysis = text.indexOf('지정 기간 종합 분석 결과');
+    const iEnergy = text.indexOf('에너지 자원별 세부 KPI');
+    const iChart = text.indexOf('누적 배출량 vs 누적 목표');
+    expect(iSummary).toBeLessThan(iAnalysis);
+    expect(iAnalysis).toBeLessThan(iEnergy);
+    expect(iEnergy).toBeLessThan(iChart);
+  });
+
+  it('에너지 카드는 ① 목표 → ② 실적 → ③ 달성률 순서로 표시한다', async () => {
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    await waitFor(() => expect(document.body.textContent).toMatch(/에너지 자원별 세부 KPI/));
+    const text = document.body.textContent;
+    const a = text.indexOf('① 목표 사용량');
+    expect(a).toBeGreaterThan(-1);
+    expect(text.indexOf('② 실제 사용량', a)).toBeGreaterThan(a);
+    expect(text.indexOf('③ 달성률:', a)).toBeGreaterThan(text.indexOf('② 실제 사용량', a));
+  });
+
+  it('월별 그래프: 목표(별도 막대)·Scope 1/2(누적 막대) 구성, 미입력 월은 null, 범례 색상이 그래프와 일치한다', async () => {
+    globalThis.__chartConfigs = [];
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    await waitFor(() => expect(document.body.textContent).toMatch(/월별 목표 대비 실적과 달성률/));
+    const monthly = globalThis.__chartConfigs.filter((c) => c.data.datasets[0].label === '월 목표').at(-1);
+    expect(monthly.data.datasets.map((d) => d.stack)).toEqual(['target', 'actual', 'actual']);
+    expect(monthly.data.datasets[1].data.slice(0, 9).every((v) => typeof v === 'number')).toBe(true);
+    expect(monthly.data.datasets[1].data.slice(9)).toEqual([null, null, null]);
+    expect(monthly.data.datasets[1].backgroundColor).toBe(CHART_COLORS.scope1);
+    expect(monthly.data.datasets[2].backgroundColor).toBe(CHART_COLORS.scope2);
+    const legendSpans = [...screen.getByTestId('legend-monthly').querySelectorAll('span[style]')].map((e) => e.style.backgroundColor);
+    expect(legendSpans).toEqual([cssColor(CHART_COLORS.targetBarBorder), cssColor(CHART_COLORS.scope1), cssColor(CHART_COLORS.scope2)]);
+    expect(monthly.options.scales.y.beginAtZero).toBe(true);
+    expect(monthly.plugins.length).toBeGreaterThan(0);
+  });
+
+  it('누적 그래프: 누적 목표는 연간 목표까지, 누적 실적은 입력된 달까지만 그린다', async () => {
+    globalThis.__chartConfigs = [];
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    await waitFor(() => expect(document.body.textContent).toMatch(/누적 배출량 vs 누적 목표/));
+    const cum = globalThis.__chartConfigs.filter((c) => c.data.datasets[0].label === '누적 목표').at(-1);
+    const target = cum.data.datasets[0].data;
+    const actual = cum.data.datasets[1].data;
+    expect(target[11]).toBeCloseTo(578.05, 1);
+    expect(actual[8]).toBeCloseTo(451.99, 1);
+    expect(actual.slice(9)).toEqual([null, null, null]);
+    expect(actual[8]).toBeGreaterThan(target[8]);
+  });
+});

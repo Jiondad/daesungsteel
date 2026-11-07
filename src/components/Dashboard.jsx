@@ -7,6 +7,9 @@ import { RevenueIntensityChart } from './charts/RevenueIntensityChart';
 import { TARGETS_2026 } from '../lib/constants';
 import { calculateEmissions, formatVal, getFactors, isEntered } from '../lib/emissions';
 import { buildSeasonalProfile, forecastAnnual } from '../lib/planning';
+import { averageIntensity, buildCumulativeSeries, buildMonthlyChartData } from '../lib/chartData';
+import { CHART_COLORS } from './charts/chartColors';
+import { CumulativeChart } from './charts/CumulativeChart';
 import { computeAnnualTarget, computePeriodStats, pctDiff } from '../lib/period';
 
 export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh, availableYears = [2026, 2025, 2024] }) => {
@@ -136,24 +139,11 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
   }, [yearRecords]);
 
   // Primary Mixed Graph Data (fromMonth to toMonth)
-  const chartData1 = useMemo(() => {
-    const data = [];
-    for (let m = fromMonth; m <= toMonth; m++) {
-      const target = yearTargets[m - 1] || yearTargets[0] || TARGETS_2026[0];
-      const record = yearRecords.find(r => r.month === m);
-
-      const targetEm = calculateEmissions(target.diesel, target.cityGas, target.electricity, selectedYear);
-      const actualEm = record ? calculateEmissions(record.diesel, record.cityGas, record.electricity, selectedYear) : null;
-
-      data.push({
-        month: m,
-        scope1: actualEm ? actualEm.scope1 : 0,
-        scope2: actualEm ? actualEm.scope2 : 0,
-        target: targetEm.total,
-      });
-    }
-    return data;
-  }, [yearRecords, fromMonth, toMonth, yearTargets]);
+  const monthlyData = useMemo(
+    () => buildMonthlyChartData(yearRecords, yearTargets, fromMonth, toMonth, selectedYear),
+    [yearRecords, fromMonth, toMonth, yearTargets, selectedYear]
+  );
+  const cumulativeData = useMemo(() => buildCumulativeSeries(monthlyData), [monthlyData]);
 
   // Revenue & Intensity Graph Data (fromMonth to toMonth)
   const chartData2 = useMemo(() => {
@@ -172,6 +162,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
     }
     return data;
   }, [yearRecords, fromMonth, toMonth]);
+  const avgIntensity = useMemo(() => averageIntensity(chartData2), [chartData2]);
 
   const renderMetricRow = (label, icon, value, target, unit, factor) => {
     const isExceeded = value > target;
@@ -203,13 +194,17 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
         </div>
 
         <div className="space-y-2 font-mono text-xs mt-3">
+          <div className="flex justify-between items-center text-[#78716C]">
+            <span>① 목표 사용량:</span>
+            <span>{formatVal(target, 2)} {unit}</span>
+          </div>
           <div className="flex justify-between items-center text-[#57534E]">
-            <span>실제 사용량:</span>
+            <span>② 실제 사용량:</span>
             <span className="font-bold text-[#1C1A17]">{value !== undefined ? formatVal(value, 2) : '0.00'} {unit}</span>
           </div>
-          <div className="flex justify-between items-center text-[#78716C]">
-            <span>기준 목표치:</span>
-            <span>{formatVal(target, 2)} {unit}</span>
+          <div className="flex justify-between items-center">
+            <span className="text-[#57534E]">③ 달성률:</span>
+            <span className={`font-bold ${isExceeded ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>{formatVal(target > 0 ? (value / target) * 100 : 0, 1)}%</span>
           </div>
           <div className="flex justify-between items-center text-[#57534E] border-t border-[#1C1A17]/10 pt-2 text-[11px]">
             <span className="font-medium">환산 배출량:</span>
@@ -357,38 +352,96 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
 
         {periodStats.activeMonthsCount > 0 ? (
           <div className="space-y-6">
-            {/* 5 KPI Cards placed horizontally at the top */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 print:grid-cols-3 gap-4 font-mono print-avoid-break">
-              <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
-                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">선택 기간 총 배출량</span>
-                <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
-                <span className="text-xs text-[#57534E] ml-1">t</span>
+            {/* ① 목표 → ② 실적 → ③ 달성률 */}
+            <div className="space-y-3 print-avoid-break">
+              <h4 className="text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-sans">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#1C1A17]" />
+                목표 대비 달성 현황 <span className="text-[11px] font-normal text-[#78716C]">(동일 기간 {periodStats.activeMonthsCount}개월 기준 · 목표 → 실적 → 달성률)</span>
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] print:grid-cols-3 gap-3 md:gap-0 items-stretch font-mono">
+                <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                  <span className="text-[11px] text-[#78716C] block font-bold font-sans">① 목표 (동일 기간 누적)</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-[#0D9488]">{formatVal(periodStats.targetTotal, 2)}</span>
+                  <span className="text-xs text-[#78716C] ml-1">t</span>
+                  <span className="text-[10px] text-[#78716C] block font-sans mt-1 leading-tight">기간 전체 목표 {formatVal(periodStats.targetFullTotal, 2)} t</span>
+                </div>
+                <span className="hidden md:flex print:hidden items-center justify-center px-2 text-2xl text-[#A8A29E]" aria-hidden="true">→</span>
+                <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                  <span className="text-[11px] text-[#78716C] block font-bold font-sans">② 실적 (총 배출량)</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
+                  <span className="text-xs text-[#57534E] ml-1">t</span>
+                  <span className="text-[10px] text-[#78716C] block font-sans mt-1 leading-tight">입력 {periodStats.activeMonthsCount}개월 ({monthsLabel(periodStats.activeMonthsList)})</span>
+                </div>
+                <span className="hidden md:flex print:hidden items-center justify-center px-2 text-2xl text-[#A8A29E]" aria-hidden="true">→</span>
+                <div className={`p-4 border ${periodStats.actualTotal > periodStats.targetTotal ? 'bg-[#FEF2F2] border-[#FCA5A5]' : 'bg-[#F0FDF4] border-[#86EFAC]'}`}>
+                  <span className="text-[11px] text-[#57534E] block font-bold font-sans">③ 달성률</span>
+                  <span className={`text-2xl sm:text-3xl font-bold ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
+                    {formatVal(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0, 1)}%
+                  </span>
+                  <span className={`text-[11px] block font-sans font-bold mt-1 ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
+                    {periodStats.actualTotal > periodStats.targetTotal ? '목표 초과' : '목표 이내'} {signedPct(pctDiff(periodStats.actualTotal, periodStats.targetTotal))}
+                  </span>
+                  <span className="text-[10px] text-[#78716C] block font-sans leading-tight">배출 실적 ÷ 누적 목표 (100% 이하면 목표 이내)</span>
+                </div>
               </div>
-              <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
-                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">동일 기간 누적 목표</span>
-                <span className="text-xl sm:text-2xl font-bold text-[#0D9488]">{formatVal(periodStats.targetTotal, 2)}</span>
-                <span className="text-xs text-[#78716C] ml-1">t</span>
-                <span className="text-[10px] text-[#78716C] block font-sans font-semibold mt-1 leading-tight">
-                  입력 {periodStats.activeMonthsCount}개월 기준 · 기간 전체 목표 {formatVal(periodStats.targetFullTotal, 2)} t
-                </span>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-3 font-mono">
+                {[
+                  { key: 's1', title: 'Scope 1 (직접)', color: CHART_COLORS.scope1, actual: periodStats.actualScope1, target: periodStats.targetScope1 },
+                  { key: 's2', title: 'Scope 2 (간접)', color: CHART_COLORS.scope2, actual: periodStats.actualScope2, target: periodStats.targetScope2 },
+                ].map(({ key, title, color, actual, target }) => {
+                  const rate = target > 0 ? (actual / target) * 100 : 0;
+                  const over = actual > target;
+                  const scale = Math.max(100, rate);
+                  return (
+                    <div key={key} className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10" data-testid={`scope-card-${key}`}>
+                      <span className="text-[12px] font-bold font-sans flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5" style={{ backgroundColor: color }} />
+                        {title}
+                      </span>
+                      <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+                        <div><span className="text-[10px] text-[#78716C] block font-sans">① 목표</span><span className="text-sm font-bold text-[#0D9488]">{formatVal(target, 2)}</span></div>
+                        <div><span className="text-[10px] text-[#78716C] block font-sans">② 실적</span><span className="text-sm font-bold text-[#1C1A17]">{formatVal(actual, 2)}</span></div>
+                        <div><span className="text-[10px] text-[#78716C] block font-sans">③ 달성률</span><span className={`text-sm font-bold ${over ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>{formatVal(rate, 1)}%</span></div>
+                      </div>
+                      <div className="relative h-2 bg-[#EAE6DD] mt-3" aria-hidden="true">
+                        <div className="h-full" style={{ width: `${(rate / scale) * 100}%`, backgroundColor: over ? CHART_COLORS.over : CHART_COLORS.ok }} />
+                        <div className="absolute top-[-3px] bottom-[-3px] w-0.5 bg-[#1C1A17]" style={{ left: `${(100 / scale) * 100}%` }} />
+                      </div>
+                      <span className="text-[10px] text-[#78716C] block font-sans mt-1">검은 선 = 목표(100%) · 단위 tCO₂e</span>
+                    </div>
+                  );
+                })}
+                <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                  <span className="text-[12px] font-bold font-sans block">평균 탄소 집약도</span>
+                  <span className="text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.intensity, 3)}</span>
+                  <span className="text-xs text-[#57534E] ml-1">t/억원</span>
+                  <span className="text-[10px] text-[#78716C] block font-sans font-semibold mt-1 leading-tight">매출 1억원당 배출량</span>
+                </div>
               </div>
-              <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
-                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 1 (직접)</span>
-                <span className="text-lg sm:text-xl font-bold text-[#B45309]">{formatVal(periodStats.actualScope1, 2)}</span>
-                <span className="text-xs text-[#78716C] ml-0.5">t</span>
-              </div>
-              <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
-                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">Scope 2 (간접)</span>
-                <span className="text-lg sm:text-xl font-bold text-[#1E40AF]">{formatVal(periodStats.actualScope2, 2)}</span>
-                <span className="text-xs text-[#78716C] ml-0.5">t</span>
-              </div>
-              <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10 col-span-2 sm:col-span-1">
-                <span className="text-[10px] text-[#78716C] uppercase tracking-wider block font-semibold">평균 탄소 집약도</span>
-                <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.intensity, 3)}</span>
-                <span className="text-xs text-[#57534E] ml-1">t/억원</span>
-                <span className="text-[10px] text-[#78716C] block font-sans font-semibold mt-1 leading-tight">
-                  매출 1억원당 배출량
-                </span>
+            </div>
+
+            {/* 종합 분석 결과: 달성 현황 바로 아래 */}
+            <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7] print-avoid-break">
+              <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
+                <div className="text-[#57534E] mt-1 space-y-1.5">
+                  <p className={`font-semibold ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
+                    {periodStats.actualTotal > periodStats.targetTotal ? '✖' : '✔'} 입력된 {periodStats.activeMonthsCount}개월({monthsLabel(periodStats.activeMonthsList)})의 배출량 {formatVal(periodStats.actualTotal, 2)} t은 같은 기간 누적 목표 {formatVal(periodStats.targetTotal, 2)} t보다 {formatVal(Math.abs(periodStats.actualTotal - periodStats.targetTotal), 2)} t({signedPct(pctDiff(periodStats.actualTotal, periodStats.targetTotal))}) {periodStats.actualTotal > periodStats.targetTotal ? '많습니다.' : '적습니다.'}
+                  </p>
+                  <ul className="text-[11px] list-disc pl-4 space-y-0.5 font-mono">
+                    <li>Scope 1: 실적 {formatVal(periodStats.actualScope1, 2)} t / 목표 {formatVal(periodStats.targetScope1, 2)} t ({signedPct(pctDiff(periodStats.actualScope1, periodStats.targetScope1))})</li>
+                    <li>Scope 2: 실적 {formatVal(periodStats.actualScope2, 2)} t / 목표 {formatVal(periodStats.targetScope2, 2)} t ({signedPct(pctDiff(periodStats.actualScope2, periodStats.targetScope2))})</li>
+                  </ul>
+                  <p className="text-[11px] text-[#78716C]">Scope별로 증감 방향이 다를 수 있어 합계만으로 판단하지 말고 위 항목을 함께 확인하세요.</p>
+                  {fromMonth === 1 && toMonth === 12 && forecast && !forecast.complete && (
+                    <p className="text-[11px] text-[#57534E]">
+                      계절 보정 연말 예상(참고용 추정): {formatVal(forecast.total, 2)} t · 연간 목표 {formatVal(annualTarget.total, 2)} t 대비 {signedPct(pctDiff(forecast.total, annualTarget.total))}
+                      <span className="block text-[#78716C]">기준: {forecast.basisLabel}. 실적이 아닌 추정값입니다.</span>
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -504,29 +557,6 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
               </div>
             </div>
 
-            {/* '지정 기간 종합 분석 결과' text box at the very bottom of the section */}
-            <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7] print-avoid-break">
-              <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
-                <div className="text-[#57534E] mt-1 space-y-1.5">
-                  <p className={`font-semibold ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
-                    {periodStats.actualTotal > periodStats.targetTotal ? '✖' : '✔'} 입력된 {periodStats.activeMonthsCount}개월({monthsLabel(periodStats.activeMonthsList)})의 배출량 {formatVal(periodStats.actualTotal, 2)} t은 같은 기간 누적 목표 {formatVal(periodStats.targetTotal, 2)} t보다 {formatVal(Math.abs(periodStats.actualTotal - periodStats.targetTotal), 2)} t({signedPct(pctDiff(periodStats.actualTotal, periodStats.targetTotal))}) {periodStats.actualTotal > periodStats.targetTotal ? '많습니다.' : '적습니다.'}
-                  </p>
-                  <ul className="text-[11px] list-disc pl-4 space-y-0.5 font-mono">
-                    <li>Scope 1: 실적 {formatVal(periodStats.actualScope1, 2)} t / 목표 {formatVal(periodStats.targetScope1, 2)} t ({signedPct(pctDiff(periodStats.actualScope1, periodStats.targetScope1))})</li>
-                    <li>Scope 2: 실적 {formatVal(periodStats.actualScope2, 2)} t / 목표 {formatVal(periodStats.targetScope2, 2)} t ({signedPct(pctDiff(periodStats.actualScope2, periodStats.targetScope2))})</li>
-                  </ul>
-                  <p className="text-[11px] text-[#78716C]">Scope별로 증감 방향이 다를 수 있어 합계만으로 판단하지 말고 위 항목을 함께 확인하세요.</p>
-                  {fromMonth === 1 && toMonth === 12 && forecast && !forecast.complete && (
-                    <p className="text-[11px] text-[#57534E]">
-                      계절 보정 연말 예상(참고용 추정): {formatVal(forecast.total, 2)} t · 연간 목표 {formatVal(annualTarget.total, 2)} t 대비 {signedPct(pctDiff(forecast.total, annualTarget.total))}
-                      <span className="block text-[#78716C]">기준: {forecast.basisLabel}. 실적이 아닌 추정값입니다.</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
 
           </div>
         ) : (
@@ -558,37 +588,51 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
             {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualDiesel, periodStats.targetDiesel, 'L', getFactors(selectedYear).diesel)}
             {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualCityGas, periodStats.targetCityGas, 'Nm³', getFactors(selectedYear).cityGas)}
             {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, periodStats.actualElectricity, periodStats.targetElectricity, 'kWh', getFactors(selectedYear).electricity)}
-            {renderMetricRow('용수/수도 (전사제외)', <Icon name="droplet" className="w-4 h-4" />, periodStats.actualWater, periodStats.targetWater, 'TON', getFactors(selectedYear).water)}
+            {renderMetricRow('용수/수도 (참고·Scope 3 제외)', <Icon name="droplet" className="w-4 h-4" />, periodStats.actualWater, periodStats.targetWater, 'TON', getFactors(selectedYear).water)}
           </div>
         </div>
       )}
 
-      {/* Graphical Trends */}
-      {/* Same fix as above: block instead of grid for print so Chromium's
-          pagination engine doesn't leave a blank gap before this section. */}
+      {/* 그래프: 누적 추이 → 월별 달성 → 원단위 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-1 print-stack gap-8 print:space-y-4">
         <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
-          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 print:mb-2 border-b pb-3 print:pb-1.5 border-[#FAF9F6]">
-            <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
-            {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 목표 대비 실제 총 온실가스 배출량 추이
+          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-3 print:pb-1.5 border-[#F2EFE9]">
+            <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
+            {selectedYear}년 누적 배출량 vs 누적 목표
           </h3>
-          <MonthlyEmissionsChart data={chartData1} />
-          <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 print:mt-2 justify-center">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#D97706]" />실제 Scope 1</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#2563EB]" />실제 Scope 2</span>
-            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 border-t-2 border-[#DC2626]" />목표 배출량 (t)</span>
+          <p className="text-[11px] text-[#78716C] mb-3">실적 곡선(실선)이 목표 곡선(점선) 위에 있으면 목표를 초과한 상태입니다.</p>
+          <CumulativeChart data={cumulativeData} />
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-4 print:mt-2 justify-center" data-testid="legend-cumulative">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.actualLine, borderTopStyle: 'solid' }} />누적 실적</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.targetLine, borderTopStyle: 'dashed' }} />누적 목표</span>
           </div>
         </div>
 
         <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
-          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-4 print:mb-2 border-b pb-3 print:pb-1.5 border-[#FAF9F6]">
-            <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
-            {selectedYear}년 {fromMonth}월 ~ {toMonth}월 월별 매출액 대비 배출량(원단위) 추이
+          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-3 print:pb-1.5 border-[#F2EFE9]">
+            <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
+            {selectedYear}년 월별 목표 대비 실적과 달성률
           </h3>
-          <RevenueIntensityChart data={chartData2} />
-          <div className="flex flex-wrap gap-4 text-[10px] font-mono mt-4 print:mt-2 justify-center">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#EAE6DD]" />월별 매출액 (억원)</span>
-            <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 border-t-2 border-[#10B981]" />배출 원단위 (tCO₂e/억원)</span>
+          <p className="text-[11px] text-[#78716C] mb-3">막대 위 %는 월 목표 대비 달성률입니다(<span className="font-bold text-[#B91C1C]">빨강 = 초과</span>, <span className="font-bold text-[#15803D]">초록 = 이내</span>). 미입력 월은 회색으로 표시됩니다.</p>
+          <MonthlyEmissionsChart data={monthlyData} />
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-4 print:mt-2 justify-center" data-testid="legend-monthly">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.targetBarBorder }} />월 목표</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.scope1 }} />실적 Scope 1</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.scope2 }} />실적 Scope 2</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break lg:col-span-2 print:col-span-1">
+          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-3 print:pb-1.5 border-[#F2EFE9]">
+            <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
+            {selectedYear}년 월별 매출액 대비 배출량(원단위) 추이
+          </h3>
+          <p className="text-[11px] text-[#78716C] mb-3">원단위가 낮을수록 같은 매출을 더 적은 배출로 만들었다는 뜻입니다. 점 위 숫자는 월별 원단위입니다.</p>
+          <RevenueIntensityChart data={chartData2} average={avgIntensity} />
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-4 print:mt-2 justify-center" data-testid="legend-intensity">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.revenueBorder }} />월별 매출액 (억원)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.intensity, borderTopStyle: 'solid' }} />배출 원단위 (tCO₂e/억원)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.intensityAvg, borderTopStyle: 'dashed' }} />평균 원단위</span>
           </div>
         </div>
       </div>
