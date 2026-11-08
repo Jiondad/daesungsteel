@@ -5,6 +5,8 @@ import { Roadmap } from './components/Roadmap';
 import { TargetSetting } from './components/TargetSetting';
 import { PLAN_METHOD_START_YEAR, TARGETS_2026 } from './lib/constants';
 import { buildYearPlanTargets } from './lib/planning';
+import { appendLog, describeDiff, diffRecords, makeLogEntry, normalizeAuditConfig } from './lib/audit';
+import { AuditReport } from './components/AuditReport';
 import { loadDbResponse, saveDbState } from './services/db';
 
 export function App() {
@@ -18,25 +20,37 @@ export function App() {
   const [cachedDb, setCachedDb] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [planMeta, setPlanMeta] = useState({});
+  const [auditConfig, setAuditConfig] = useState(normalizeAuditConfig(null));
+  const [scenarios, setScenarios] = useState([]);
+  const [changeLog, setChangeLog] = useState([]);
+
+  // 관리자 인증(현재는 브라우저 내 PIN 확인 — 서버 인증은 4단계에서 교체 예정)
+  const ensureAdmin = () => {
+    if (isAdminAuthenticated) return true;
+    const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
+    const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
+    if (pin === token) {
+      setIsAdminAuthenticated(true);
+      return true;
+    }
+    alert("❌ 권한이 없습니다.");
+    return false;
+  };
 
   const handleTabChange = (tabId) => {
-    if (tabId === 'entry' || tabId === 'targets_tab') {
-      if (!isAdminAuthenticated) {
-        const token = [49, 49, 48, 51].map(c => String.fromCharCode(c)).join('');
-        const pin = window.prompt("관리자 인증이 필요합니다. 마스터 비밀번호를 입력하세요:");
-        if (pin === token) {
-          setIsAdminAuthenticated(true);
-          setActiveTab(tabId);
-        } else {
-          alert("❌ 권한이 없습니다.");
-        }
-      } else {
-        setActiveTab(tabId);
-      }
+    if (tabId === 'entry' || tabId === 'targets_tab' || tabId === 'audit_tab') {
+      if (ensureAdmin()) setActiveTab(tabId);
     } else {
       setIsAdminAuthenticated(false);
       setActiveTab(tabId);
     }
+  };
+
+  // 저장된 부가 정보(보고서 설정·시나리오·변경 이력) 반영
+  const applyExtras = (st) => {
+    setAuditConfig(normalizeAuditConfig(st && st.auditConfig));
+    setScenarios(Array.isArray(st && st.scenarios) ? st.scenarios : []);
+    setChangeLog(Array.isArray(st && st.changeLog) ? st.changeLog : []);
   };
 
   const loadData = async (silent = false) => {
@@ -50,6 +64,7 @@ export function App() {
       setRecords(loadedRecords);
       setTargets(loadedTargets);
       setPlanMeta(cachedDb.planMeta && typeof cachedDb.planMeta === 'object' ? cachedDb.planMeta : {});
+      applyExtras(cachedDb);
       return;
     }
 
@@ -70,6 +85,7 @@ export function App() {
         setRecords(loadedRecords);
         setTargets(loadedTargets);
         setPlanMeta(parsedState.planMeta && typeof parsedState.planMeta === 'object' ? parsedState.planMeta : {});
+        applyExtras(parsedState);
         setLoadError('');
       } else if (responseJson && responseJson.result === "success") {
         // 서버 응답은 정상이나 저장된 데이터가 없는 경우(최초 사용): 빈 상태로 시작한다.
@@ -82,6 +98,7 @@ export function App() {
         setRecords([]);
         setTargets(defaultTargets);
         setPlanMeta({});
+        applyExtras(null);
         setLoadError('');
       } else {
         // 오류 응답: 기존 데이터를 덮어쓰지 않도록 저장을 막고 안내한다.
@@ -105,26 +122,40 @@ export function App() {
     setRecords([]);
     setTargets(defaultTargets);
     setPlanMeta({});
+    applyExtras(null);
     setLoadError('');
   };
 
-  const handleSaveAll = async (updatedYears = availableYears, updatedRecords = records, updatedTargets = targets, updatedPlanMeta = planMeta) => {
+  const handleSaveAll = async (updatedYears = availableYears, updatedRecords = records, updatedTargets = targets, updatedPlanMeta = planMeta, extra = {}) => {
     if (loadError) {
       alert('데이터를 불러오지 못한 상태에서는 저장할 수 없습니다. 상단의 [다시 시도]로 먼저 불러와 주세요.');
       return false;
     }
     try {
       setIsSaving(true);
+      // 변경 이력(감사 대응): 저장할 때마다 작업·내용·작업자를 함께 기록한다
+      const actor = isAdminAuthenticated ? '관리자(PIN 인증)' : '미인증';
+      const nextLog = extra.log
+        ? appendLog(changeLog, makeLogEntry(extra.log.action, extra.log.detail, { year: extra.log.year === undefined ? null : extra.log.year, actor }))
+        : changeLog;
+      const nextConfig = extra.auditConfig !== undefined ? extra.auditConfig : auditConfig;
+      const nextScenarios = extra.scenarios !== undefined ? extra.scenarios : scenarios;
       const stateToSave = {
         availableYears: updatedYears,
         records: updatedRecords,
         targets: updatedTargets,
-        planMeta: updatedPlanMeta
+        planMeta: updatedPlanMeta,
+        auditConfig: nextConfig,
+        scenarios: nextScenarios,
+        changeLog: nextLog
       };
       const result = await saveDbState(stateToSave);
       if (result && result.result === "success") {
         // 저장 성공 시 로컬 인메모리 캐시도 즉시 동기화
         setCachedDb(stateToSave);
+        setChangeLog(nextLog);
+        setAuditConfig(nextConfig);
+        setScenarios(nextScenarios);
         alert("대성스틸 공용 구글 DB에 안전하게 일괄 저장이 완료되었습니다!");
         return true;
       } else {
@@ -153,7 +184,8 @@ export function App() {
       nextRecords.push(record);
     }
 
-    const success = await handleSaveAll(availableYears, nextRecords, targets);
+    const logDetail = describeDiff(diffRecords(records, nextRecords, record.year)) || '변경 없음';
+    const success = await handleSaveAll(availableYears, nextRecords, targets, planMeta, { log: { action: '실적 저장', detail: `${record.year}년 ${record.month}월: ${logDetail}`, year: record.year } });
     if (success) {
       setRecords(nextRecords);
     }
@@ -164,7 +196,8 @@ export function App() {
     const filtered = records.filter(r => r.year !== year);
     const nextRecords = [...filtered, ...yearRecords];
 
-    const success = await handleSaveAll(availableYears, nextRecords, targets);
+    const logDetail = describeDiff(diffRecords(records, nextRecords, year)) || '변경 없음';
+    const success = await handleSaveAll(availableYears, nextRecords, targets, planMeta, { log: { action: '실적 일괄 저장', detail: `${year}년: ${logDetail}`, year } });
     if (success) {
       setRecords(nextRecords);
     }
@@ -173,8 +206,11 @@ export function App() {
 
   const handleDeleteRecord = async (id) => {
     if (window.confirm('정말로 이 월별 실적 기록을 삭제하시겠습니까? 관련 탄소 배출 데이터가 영구 삭제됩니다.')) {
+      const target = records.find(r => r.id === id);
       const nextRecords = records.filter(r => r.id !== id);
-      const success = await handleSaveAll(availableYears, nextRecords, targets);
+      const success = await handleSaveAll(availableYears, nextRecords, targets, planMeta, {
+        log: { action: '실적 삭제', detail: target ? `${target.year}년 ${target.month}월 기록 삭제` : `기록 삭제(${id})`, year: target ? target.year : null }
+      });
       if (success) {
         setRecords(nextRecords);
       }
@@ -192,12 +228,34 @@ export function App() {
       // 자동 수립 이후 목표를 직접 변경한 경우 기록에 표시
       nextMeta = { ...planMeta, [year]: { ...planMeta[year], modifiedAfterPlan: true, modifiedAt: now } };
     }
-    const success = await handleSaveAll(availableYears, records, nextTargets, nextMeta);
+    const logDetail = meta
+      ? `${meta.method}${meta.reason ? ' / 사유: ' + meta.reason : ''}${meta.lockedMonths && meta.lockedMonths.length ? ' / 기존 목표 유지: ' + meta.lockedMonths.join(',') + '월' : ''}`
+      : '월별 목표 수동 수정';
+    const success = await handleSaveAll(availableYears, records, nextTargets, nextMeta, {
+      log: { action: meta ? '목표 저장(자동 수립)' : '목표 저장(수동)', detail: `${year}년: ${logDetail}`, year }
+    });
     if (success) {
       setTargets(nextTargets);
       setPlanMeta(nextMeta);
     }
     return success;
+  };
+
+  // 보고서 설정(조직경계·배출계수 출처·결재) 저장
+  const handleSaveAuditConfig = async (cfg) => {
+    if (!ensureAdmin()) return false;
+    return handleSaveAll(availableYears, records, targets, planMeta, {
+      auditConfig: cfg, log: { action: '보고서 설정 저장', detail: '조직경계·배출계수 출처·결재 정보', year: null }
+    });
+  };
+
+  // 로드맵 시나리오 저장(가정·근거·결과를 스냅샷으로 보관)
+  const handleSaveScenario = async (snapshot) => {
+    if (!ensureAdmin()) return false;
+    const next = [...scenarios.filter(sc => sc.id !== snapshot.id), snapshot].slice(-20);
+    return handleSaveAll(availableYears, records, targets, planMeta, {
+      scenarios: next, log: { action: '로드맵 시나리오 저장', detail: `“${snapshot.name}”`, year: null }
+    });
   };
 
   const handleRegisterYear = async (newYear) => {
@@ -237,7 +295,9 @@ export function App() {
       }
     }
 
-    const success = await handleSaveAll(nextYears, nextRecords, nextTargets, nextMeta);
+    const success = await handleSaveAll(nextYears, nextRecords, nextTargets, nextMeta, {
+      log: { action: '연도 등록', detail: `${yr}년 등록${yr >= PLAN_METHOD_START_YEAR ? ' (목표 자동 수립)' : ''}`, year: yr }
+    });
     if (success) {
       setAvailableYears(nextYears);
       setRecords(nextRecords);
@@ -294,6 +354,7 @@ export function App() {
             <button onClick={() => handleTabChange('entry')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'entry' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>실적 입력</button>
             <button onClick={() => handleTabChange('targets_tab')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'targets_tab' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>목표 설정</button>
             <button onClick={() => handleTabChange('roadmap')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'roadmap' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>로드맵 시뮬레이터</button>
+            <button onClick={() => handleTabChange('audit_tab')} className={`flex items-center gap-2 px-3 sm:px-4 py-2 transition-all cursor-pointer ${activeTab === 'audit_tab' ? 'bg-[#1C1A17] text-[#FAF9F6]' : 'text-[#57534E] hover:text-[#1C1A17]'}`}>감사 보고서</button>
           </nav>
         </div>
       </header>
@@ -303,7 +364,15 @@ export function App() {
         {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => handleTabChange('entry')} onRefresh={loadData} availableYears={availableYears} />}
         {activeTab === 'entry' && <DataEntry records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
         {activeTab === 'targets_tab' && <TargetSetting planMeta={planMeta} targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
-        {activeTab === 'roadmap' && <Roadmap records={records} availableYears={availableYears} />}
+        {activeTab === 'roadmap' && <Roadmap records={records} scenarios={scenarios} onSaveScenario={handleSaveScenario} />}
+        {activeTab === 'audit_tab' && (
+          <AuditReport
+            records={records} targets={targets} planMeta={planMeta} auditConfig={auditConfig}
+            scenarios={scenarios} changeLog={changeLog} availableYears={availableYears}
+            backupData={{ availableYears, records, targets, planMeta, auditConfig, scenarios, changeLog }}
+            onSaveConfig={handleSaveAuditConfig} isSaving={isSaving}
+          />
+        )}
       </main>
 
       {/* Footer */}

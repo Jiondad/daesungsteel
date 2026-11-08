@@ -15,7 +15,7 @@ const ROADMAP_LEVER_DEFS = [
   { id: 'rec', name: '재생에너지 구매 (PPA·REC·녹색프리미엄)', unit: 'kWh/년 (시장기반 Scope 2에만 반영)', step: 1000, max: null },
 ];
 
-export const Roadmap = ({ records }) => {
+export const Roadmap = ({ records, scenarios = [], onSaveScenario }) => {
   const [params, setParams] = useState({ bauGrowth: 0, solarYield: 1200, evKwhPerL: 3.5 });
   const [paramBasis, setParamBasis] = useState({ bauGrowth: '', solarYield: '', evKwhPerL: '' });
   const [levers, setLevers] = useState({
@@ -25,6 +25,7 @@ export const Roadmap = ({ records }) => {
     solar: { amount: 0, start: 2027, full: 2030, basis: '' },
     rec: { amount: 0, start: 2027, full: 2030, basis: '' },
   });
+  const [scenarioName, setScenarioName] = useState('');
   const setLever = (id, field, value) => setLevers(p => ({ ...p, [id]: { ...p[id], [field]: value } }));
   const setParam = (key, value) => setParams(p => ({ ...p, [key]: value }));
 
@@ -58,6 +59,27 @@ export const Roadmap = ({ records }) => {
   const base2025 = actuals[0];
   const officialBase = ROADMAP_TARGETS[0].target;
 
+  const handleSaveScenario = async () => {
+    if (!onSaveScenario) return;
+    const name = scenarioName.trim() || `시나리오 ${scenarios.length + 1}`;
+    const snapshot = {
+      id: `sc-${Date.now()}`,
+      name,
+      savedAt: new Date().toISOString(),
+      params: { ...params },
+      paramBasis: { ...paramBasis },
+      levers: JSON.parse(JSON.stringify(levers)),
+      results: rows.map((r) => ({ year: r.year, target: r.target, bau: r.bau.total, total: r.total, totalMarket: r.totalMarket, scope1: r.scope1, scope2: r.scope2 })),
+    };
+    const ok = await onSaveScenario(snapshot);
+    if (ok) setScenarioName('');
+  };
+  const loadScenario = (sc) => {
+    setParams({ ...sc.params });
+    setParamBasis({ bauGrowth: '', solarYield: '', evKwhPerL: '', ...(sc.paramBasis || {}) });
+    setLevers(JSON.parse(JSON.stringify(sc.levers)));
+  };
+
   const cellNum = "w-full bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1 text-xs font-mono text-right focus:outline-none focus:border-[#1C1A17]";
   const cellTxt = "w-full bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1 text-xs focus:outline-none focus:border-[#1C1A17]";
   const yearOpts = ROADMAP_YEARS.filter(y => y > ROADMAP_BASE_YEAR);
@@ -76,6 +98,24 @@ export const Roadmap = ({ records }) => {
           기준연도 {ROADMAP_BASE_YEAR}년 {formatVal(officialBase, 3)} tCO₂e(공식 기준값) · Scope 3는 산정 대상에서 제외 · 배출량은 위치기반(location-based) Scope 2 기준이며, 재생에너지 구매는 시장기반 수치로 별도 표시합니다.
           입력한 가정값은 의사결정 참고용이므로, 감사·보고에 쓰려면 각 가정의 근거를 아래 칸에 기록하세요.
         </p>
+      </div>
+
+      <div className="bg-white border border-[#1C1A17]/15 p-4 shadow-sm space-y-2 print:hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-[#57534E]">시나리오 저장 (감사 보고서에 포함 가능)</span>
+          <input type="text" value={scenarioName} onChange={(e) => setScenarioName(e.target.value)} placeholder="시나리오 이름 (예: 태양광 도입안)"
+            className="bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-1.5 text-xs w-56 focus:outline-none focus:border-[#1C1A17]" />
+          <button type="button" onClick={handleSaveScenario} className="px-3 py-1.5 bg-[#1C1A17] text-[#FAF9F6] text-xs font-bold cursor-pointer">현재 가정 저장</button>
+        </div>
+        {scenarios.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-[#78716C]">저장된 시나리오:</span>
+            {scenarios.map((sc) => (
+              <button key={sc.id} type="button" onClick={() => loadScenario(sc)} title={`${String(sc.savedAt).slice(0, 10)} 저장 · 눌러서 불러오기`}
+                className="px-2.5 py-1 border border-[#1C1A17]/25 hover:bg-[#F2EFE9] cursor-pointer">{sc.name}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
