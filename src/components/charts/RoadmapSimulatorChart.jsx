@@ -98,6 +98,7 @@ export const RoadmapSimulatorChart = ({ data }) => {
         },
         scales: {
           x: {
+            offset: true, // 첫·마지막 점이 Y축 글자와 겹치지 않도록 여백
             grid: { color: '#FAF9F6', borderDash: [4, 4], drawTicks: false },
             ticks: { font: { family: 'Noto Sans KR', size: 11 } },
             border: { display: false }

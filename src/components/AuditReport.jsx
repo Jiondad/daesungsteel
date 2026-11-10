@@ -10,7 +10,7 @@ const STATUS_LABEL = { ok: '정상', warn: '확인 필요', info: '참고' };
 const STATUS_CLASS = { ok: 'text-[#15803D]', warn: 'text-[#B91C1C] font-bold', info: 'text-[#57534E]' };
 const num = (v, d = 2) => (v === null || v === undefined ? '-' : formatVal(v, d));
 
-export const AuditReport = ({ records, targets, planMeta, auditConfig, scenarios, changeLog, availableYears, backupData, onSaveConfig, isSaving }) => {
+export const AuditReport = ({ records, targets, planMeta, auditConfig, scenarios, changeLog, availableYears, backupData, closedMonths = {}, onSaveConfig, isSaving }) => {
   const defaultYear = useMemo(() => {
     const entered = records.filter((r) => (Number(r.diesel) || 0) > 0 || (Number(r.cityGas) || 0) > 0 || (Number(r.electricity) || 0) > 0);
     const latest = entered.length ? Math.max(...entered.map((r) => r.year)) : null;
@@ -30,8 +30,8 @@ export const AuditReport = ({ records, targets, planMeta, auditConfig, scenarios
 
   const scenario = scenarios.find((s) => s.id === scenarioId) || null;
   const data = useMemo(
-    () => buildAuditData({ year, records, targets, planMeta, config: draft, scenario, changeLog }),
-    [year, records, targets, planMeta, draft, scenario, changeLog]
+    () => buildAuditData({ year, records, targets, planMeta, config: draft, scenario, changeLog, closedMonths }),
+    [year, records, targets, planMeta, draft, scenario, changeLog, closedMonths]
   );
   const s = data.summary;
   const cfg = data.config;
@@ -190,7 +190,7 @@ export const AuditReport = ({ records, targets, planMeta, auditConfig, scenarios
             <tbody>
               {data.monthly.map((r) => (
                 <tr key={r.month} className={r.entered ? '' : 'text-[#A8A29E]'}>
-                  <th>{r.month}월</th>
+                  <th>{r.month}월{r.closed && ' 🔒'}</th>
                   {r.entered ? (
                     <>
                       <td className="num">{num(r.diesel)}</td><td className="num">{num(r.cityGas)}</td><td className="num">{num(r.electricity)}</td><td className="num">{num(r.water)}</td>

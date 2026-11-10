@@ -28,11 +28,6 @@ export const MonthlyEmissionsChart = ({ data }) => {
           const x = scales.x.getPixelForValue(i);
           c.fillStyle = 'rgba(231, 229, 228, 0.55)';
           c.fillRect(x - band / 2, chartArea.top, band, chartArea.height);
-          c.fillStyle = '#78716C';
-          c.font = '12px "Noto Sans KR", sans-serif';
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.fillText('미입력', x, chartArea.top + chartArea.height / 2);
         });
         c.restore();
       },
@@ -44,10 +39,29 @@ export const MonthlyEmissionsChart = ({ data }) => {
         c.font = 'bold 12px "Noto Sans KR", sans-serif';
         c.textAlign = 'center';
         c.textBaseline = 'bottom';
+        c.lineJoin = 'round';
+        c.lineWidth = 3;
+        c.strokeStyle = '#FFFFFF';
+        // 미입력 월 표시(막대 위가 아니라 그래프 상단에, 흰 테두리로 읽기 쉽게)
+        const { chartArea, scales } = chart;
+        if (chartArea && scales.x) {
+          data.forEach((d, i) => {
+            if (d.entered) return;
+            const x = scales.x.getPixelForValue(i);
+            c.fillStyle = '#57534E';
+            c.font = '12px "Noto Sans KR", sans-serif';
+            c.textBaseline = 'top';
+            c.strokeText('미입력', x, chartArea.top + 6);
+            c.fillText('미입력', x, chartArea.top + 6);
+          });
+        }
+        c.font = 'bold 12px "Noto Sans KR", sans-serif';
+        c.textBaseline = 'bottom';
         data.forEach((d, i) => {
           const el = meta.data[i];
           if (!d.entered || d.rate === null || !el) return;
           c.fillStyle = d.rate > 100 ? C.over : C.ok;
+          c.strokeText(`${formatVal(d.rate, 0)}%`, el.x, el.y - 6);
           c.fillText(`${formatVal(d.rate, 0)}%`, el.x, el.y - 6);
         });
         c.restore();

@@ -252,7 +252,9 @@ export const TargetSetting = ({ targets, onSaveTargets, records, onRefresh, avai
           <button
             type="button"
             onClick={handleLoadDefaults}
-            className="px-3 py-1.5 border border-[#1C1A17]/30 hover:bg-[#F2EFE9] text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+            disabled={selectedYear >= PLAN_METHOD_START_YEAR}
+            title={selectedYear >= PLAN_METHOD_START_YEAR ? `${PLAN_METHOD_START_YEAR}년부터는 [자동 수립]을 사용합니다.` : '기존 기본값(전년 동월 기준)을 불러옵니다.'}
+            className="px-3 py-1.5 border border-[#1C1A17]/30 hover:bg-[#F2EFE9] text-xs font-bold transition-all cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
           >
             기본값 불러오기
           </button>

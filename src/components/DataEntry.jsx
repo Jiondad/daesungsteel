@@ -4,7 +4,7 @@ import { YearPicker } from './YearPicker';
 import { calculateEmissions, isEntered } from '../lib/emissions';
 
 // --- DATA ENTRY COMPONENT ---
-export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onSaveTargets, onRefresh, availableYears = [2026, 2025, 2024], onRegisterYear, isSaving }) => {
+export const DataEntry = ({ closedMonths = {}, onToggleClose, records, onSaveRecords, onDeleteRecord, targets, onSaveTargets, onRefresh, availableYears = [2026, 2025, 2024], onRegisterYear, isSaving }) => {
   const [years, setYears] = useState(availableYears);
   const [year, setYear] = useState(2026);
   const [monthlyInputs, setMonthlyInputs] = useState([]);
@@ -76,6 +76,8 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
     });
   };
 
+  const isClosed = (m) => !!closedMonths[`${year}-${String(m).padStart(2, '0')}`];
+
   const handleSaveAll = (e) => {
     if (e) e.preventDefault();
 
@@ -85,6 +87,13 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
       if (!row) return;
       const monthNum = i + 1;
       const isBlank = (v) => v === '' || v === null || v === undefined;
+
+      // 마감된 월은 수정할 수 없으므로 저장된 실적을 그대로 유지한다
+      if (isClosed(monthNum)) {
+        const keep = records.find(r => r.year === year && r.month === monthNum);
+        if (keep) parsed.push(keep);
+        continue;
+      }
 
       // 완전히 빈 달은 레코드를 만들지 않는다(미입력과 0을 구분, 입력 개월 수·연환산 왜곡 방지)
       const isZeroOrBlank = (v) => isBlank(v) || Number(v) === 0;
@@ -188,7 +197,8 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                 <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">구매전력 실적 (kWh)</th>
                 <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">상수도 실적 (TON)</th>
                 <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">매출액 (억원)</th>
-                <th className="py-2.5 px-3 text-right whitespace-nowrap">예상 탄소 배출량 (tCO₂e)</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-[#1C1A17]/10">예상 탄소 배출량 (tCO₂e)</th>
+                <th className="py-2.5 px-3 text-center whitespace-nowrap w-20">마감</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1C1A17]/10 text-xs text-[#1C1A17] font-mono">
@@ -200,15 +210,18 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                 const gVal = parseFloat(row.cityGas) || 0;
                 const eVal = parseFloat(row.electricity) || 0;
                 const calc = calculateEmissions(dVal, gVal, eVal, year);
+                const closed = isClosed(m);
+                const hasSaved = records.some(r => r.year === year && r.month === m && isEntered(r));
 
                 return (
                   <tr key={m} className="hover:bg-[#FCFAF7] transition-colors">
                     <td className="py-2 px-3 text-center font-bold text-[#1C1A17] border-r border-[#1C1A17]/10 bg-[#FAF9F6]">
-                      {m}월
+                      {m}월{closed && ' 🔒'}
                     </td>
                     <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                       <input
                         type="number"
+                        disabled={closed}
                         step="any"
                         value={row.diesel}
                         onChange={(e) => handleInputChange(i, 'diesel', e.target.value)}
@@ -219,6 +232,7 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                     <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                       <input
                         type="number"
+                        disabled={closed}
                         step="any"
                         value={row.cityGas}
                         onChange={(e) => handleInputChange(i, 'cityGas', e.target.value)}
@@ -229,6 +243,7 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                     <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                       <input
                         type="number"
+                        disabled={closed}
                         step="any"
                         value={row.electricity}
                         onChange={(e) => handleInputChange(i, 'electricity', e.target.value)}
@@ -239,6 +254,7 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                     <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                       <input
                         type="number"
+                        disabled={closed}
                         step="any"
                         value={row.water}
                         onChange={(e) => handleInputChange(i, 'water', e.target.value)}
@@ -249,6 +265,7 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                     <td className="py-1 px-2 border-r border-[#1C1A17]/10">
                       <input
                         type="number"
+                        disabled={closed}
                         step="any"
                         value={row.revenue}
                         onChange={(e) => handleInputChange(i, 'revenue', e.target.value)}
@@ -256,8 +273,13 @@ export const DataEntry = ({ records, onSaveRecords, onDeleteRecord, targets, onS
                         placeholder="0"
                       />
                     </td>
-                    <td className="py-2 px-3 text-right font-bold text-[#1E40AF]">
-                      {calc.total.toFixed(3)} t
+                    <td className="py-2 px-3 text-right font-bold text-[#1E40AF] border-r border-[#1C1A17]/10">{calc.total.toFixed(3)} t</td>
+                    <td className="py-1 px-2 text-center">
+                      {closed ? (
+                        <button type="button" onClick={() => onToggleClose && onToggleClose(year, m, false)} className="text-[10px] font-bold px-2 py-1 border border-[#991B1B] text-[#991B1B] hover:bg-[#FEF2F2] cursor-pointer whitespace-nowrap">해제</button>
+                      ) : (
+                        <button type="button" disabled={!hasSaved} onClick={() => onToggleClose && onToggleClose(year, m, true)} title={hasSaved ? '이 달 실적을 마감(수정 잠금)' : '저장된 실적이 있어야 마감할 수 있습니다'} className="text-[10px] font-bold px-2 py-1 border border-[#1C1A17]/30 hover:bg-[#F2EFE9] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">마감</button>
+                      )}
                     </td>
                   </tr>
                 );

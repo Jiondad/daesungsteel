@@ -23,12 +23,16 @@ export const CumulativeChart = ({ data }) => {
         c.font = 'bold 12px "JetBrains Mono", monospace';
         c.textBaseline = 'bottom';
         c.textAlign = 'right';
+        c.lineJoin = 'round';
+        c.lineWidth = 3;
+        c.strokeStyle = '#FFFFFF';
         const lastActual = [...data].reverse().find((d) => d.actualCum !== null);
         if (lastActual) {
           const idx = data.indexOf(lastActual);
           const el = chart.getDatasetMeta(1).data[idx];
           if (el) {
             c.fillStyle = C.actualLine;
+            c.strokeText(`${formatVal(lastActual.actualCum, 1)} t`, el.x - 4, el.y - 8);
             c.fillText(`${formatVal(lastActual.actualCum, 1)} t`, el.x - 4, el.y - 8);
           }
         }
@@ -37,6 +41,7 @@ export const CumulativeChart = ({ data }) => {
         if (lastTarget && tEl) {
           c.fillStyle = C.targetLine;
           c.textBaseline = 'top';
+          c.strokeText(`${formatVal(lastTarget.targetCum, 1)} t`, tEl.x - 4, tEl.y + 8);
           c.fillText(`${formatVal(lastTarget.targetCum, 1)} t`, tEl.x - 4, tEl.y + 8);
         }
         c.restore();

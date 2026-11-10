@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 vi.mock('../src/lib/exportWorkbook', () => ({
@@ -11,12 +9,7 @@ vi.mock('../src/lib/exportWorkbook', () => ({
 
 import { App } from '../src/App.jsx';
 import { downloadJson, downloadWorkbook } from '../src/lib/exportWorkbook';
-
-const pinFromSource = () => {
-  const src = readFileSync(resolve(process.cwd(), 'src/App.jsx'), 'utf8');
-  const m = src.match(/\[([\d,\s]+)\]\.map\(c => String\.fromCharCode\(c\)\)/);
-  return m[1].split(',').map((n) => String.fromCharCode(Number(n.trim()))).join('');
-};
+import { ADMIN_PASSWORD, startServer } from './helpers/server';
 
 const T26 = [
   [100, 7565, 95205], [531, 9173, 96819], [441, 9065, 90843], [692, 5982, 85551], [452, 1860, 69982], [488, 941, 72405],
@@ -36,14 +29,12 @@ const baseDb = () => ({
 });
 
 let saves;
+let server;
 const mockServer = (db) => {
-  saves = [];
-  vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
-    const body = JSON.parse(opts.body);
-    if (body.action === 'save') { const d = JSON.parse(body.data); saves.push(d); return { json: async () => ({ result: 'success' }) }; }
-    return { json: async () => ({ result: 'success', data: JSON.stringify(db) }) };
-  }));
+  server = startServer(db);
+  saves = server.saves;
 };
+const lastLog = () => server.env.sheet('AuditLog').rows.filter((r) => r[3] !== '로그인').at(-1);
 const loaded = () => waitFor(() => expect(screen.getAllByRole('button').some((b) => b.textContent.includes('실적 입력'))).toBe(true));
 const clickBtn = (text) => fireEvent.click(screen.getAllByRole('button').find((b) => b.textContent.includes(text)));
 
@@ -51,7 +42,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, 'alert').mockImplementation(() => {});
   vi.spyOn(window, 'confirm').mockReturnValue(true);
-  vi.spyOn(window, 'prompt').mockImplementation(() => pinFromSource());
+  vi.spyOn(window, 'prompt').mockImplementation(() => ADMIN_PASSWORD);
 });
 
 describe('감사 보고서 탭', () => {
@@ -89,10 +80,10 @@ describe('감사 보고서 탭', () => {
     await waitFor(() => expect(saves.length).toBe(1));
     expect(saves[0].auditConfig.sites).toBe('본사 및 공장 (경북)');
     expect(saves[0].auditConfig.factorSources.diesel).toBe('○○ 고시 2026');
-    const last = saves[0].changeLog.at(-1);
-    expect(last.action).toBe('보고서 설정 저장');
-    expect(last.actor).toBe('관리자(PIN 인증)');
-    expect(Boolean(last.at)).toBe(true);
+    const last = lastLog();
+    expect(last[3]).toBe('보고서 설정 저장');
+    expect(last[2]).toBe('관리자');        // 서버가 로그인 사용자를 기록
+    expect(Boolean(last[0])).toBe(true);   // 서버 시각
   });
 
   it('엑셀 내보내기·전체 백업 버튼이 보고서 데이터로 내보내기를 호출한다', async () => {
@@ -126,11 +117,15 @@ describe('변경 이력 기록', () => {
     fireEvent.change(inputs()[0], { target: { value: '510' } }); // 1월 경유 505.2 → 510
     clickBtn('저장');
     await waitFor(() => expect(saves.length).toBe(1));
-    const e = saves[0].changeLog.at(-1);
-    expect(e.action).toBe('실적 일괄 저장');
-    expect(e.year).toBe(2026);
-    expect(e.detail).toMatch(/1월 경유 505\.2→510/);
-    expect(e.detail).not.toMatch(/10월|11월|12월/); // 0 레코드 정리는 변경으로 기록하지 않음
+    const e = lastLog();
+    expect(e[3]).toBe('실적 일괄 저장');
+    expect(e[4]).toBe('2026');
+    expect(e[5]).toMatch(/1월 경유 505\.2→510/);          // 화면이 보낸 작업 내용
+    expect(e[6]).toContain('실적 2026-01 경유 505.2→510'); // 서버가 직접 비교한 변경 내용
+    // 예전 방식의 빈(전부 0) 레코드 정리는 '삭제'가 아니라 '빈 레코드 정리'로 구분해 투명하게 기록
+    expect(e[6]).toContain('실적 2026-10 빈 레코드 정리(전부 0)');
+    expect(e[6]).not.toContain('2026-10 삭제');
+    expect(e[6]).not.toContain('2026-09');                // 값이 바뀌지 않은 달은 기록하지 않음
   });
 });
 
@@ -152,7 +147,7 @@ describe('로드맵 시나리오 저장 → 보고서 포함', () => {
     expect(sc.levers.solar.amount).toBe('300');
     expect(sc.levers.solar.basis).toBe('시공사 견적서 2026-10');
     expect(sc.results.length).toBe(6);
-    expect(saves[0].changeLog.at(-1).action).toBe('로드맵 시나리오 저장');
+    expect(lastLog()[3]).toBe('로드맵 시나리오 저장');
 
     clickBtn('감사 보고서');
     const report = await screen.findByTestId('audit-report');

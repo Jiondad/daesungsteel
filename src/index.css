@@ -207,3 +207,6 @@
   .audit-table { page-break-inside: auto; }
   .audit-table tr { break-inside: avoid; page-break-inside: avoid; }
 }
+
+/* 마감된 월 등 비활성 입력칸 */
+input:disabled { background: #EAE6DD; color: #78716C; cursor: not-allowed; }

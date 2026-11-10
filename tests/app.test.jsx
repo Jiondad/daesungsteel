@@ -1,16 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { App } from '../src/App.jsx';
+import { ADMIN_PASSWORD, startServer } from './helpers/server';
 import { TARGETS_2026 } from '../src/lib/constants';
-
-// 관리자 PIN은 소스에서 읽어 사용(테스트 코드에 직접 적지 않음)
-const pinFromSource = () => {
-  const src = readFileSync(resolve(process.cwd(), 'src/App.jsx'), 'utf8');
-  const m = src.match(/\[([\d,\s]+)\]\.map\(c => String\.fromCharCode\(c\)\)/);
-  return m[1].split(',').map((n) => String.fromCharCode(Number(n.trim()))).join('');
-};
 
 const rec = (y, m, k = 1) => ({
   id: `${y}-${String(m).padStart(2, '0')}`, year: y, month: m,
@@ -24,13 +16,13 @@ const baseDb = () => ({
 });
 
 let saves;
+// loadResponse: 성공(데이터 있음) → 그 데이터를 서버에 미리 저장 / 데이터 없음 → 빈 서버 / 오류 → 불러오기 요청만 오류로 응답
 const mockServer = (loadResponse) => {
-  saves = [];
-  vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
-    const body = JSON.parse(opts.body);
-    if (body.action === 'save') { saves.push(JSON.parse(body.data)); return { json: async () => ({ result: 'success' }) }; }
-    return { json: async () => loadResponse };
-  }));
+  const ok = loadResponse.result === 'success';
+  const seed = ok && loadResponse.data ? JSON.parse(loadResponse.data) : null;
+  const srv = startServer(seed, ok ? {} : { override: { load: () => loadResponse } });
+  saves = srv.saves;
+  return srv;
 };
 const okLoad = (db = baseDb()) => ({ result: 'success', data: JSON.stringify(db) });
 
@@ -42,7 +34,7 @@ const yearBtn = () => document.querySelector('button[aria-haspopup="dialog"]');
 beforeEach(() => {
   vi.spyOn(window, 'alert').mockImplementation(() => {});
   vi.spyOn(window, 'confirm').mockReturnValue(true);
-  vi.spyOn(window, 'prompt').mockImplementation(() => pinFromSource());
+  vi.spyOn(window, 'prompt').mockImplementation(() => ADMIN_PASSWORD);
 });
 
 describe('데이터 로드/저장 안전장치', () => {
@@ -248,7 +240,7 @@ describe('목표 수립 방식 적용(2026년부터)', () => {
 
   it('새 연도(2027) 등록 시 2026년 목표는 그대로 두고, 2027 목표는 공식 로드맵 기준으로 자동 수립·기록된다', async () => {
     mockServer(okLoad(realisticDb()));
-    window.prompt.mockImplementation((msg) => (String(msg).includes('등록하실') ? '2027' : pinFromSource()));
+    window.prompt.mockImplementation((msg) => (String(msg).includes('등록하실') ? '2027' : ADMIN_PASSWORD));
     render(<App />);
     await loaded();
     clickBtn('목표 설정');
@@ -260,7 +252,7 @@ describe('목표 수립 방식 적용(2026년부터)', () => {
     const sum = (k) => d.targets[2027].reduce((a, t) => a + t[k], 0);
     const total = sum('diesel') * 0.002624 + sum('cityGas') * 0.002129 + sum('electricity') * 0.0004594;
     expect(total).toBeCloseTo(542.395, 1);
-    expect(d.targets[2026]).toEqual(T26);
+    expect(d.targets[2026].map(({ diesel, cityGas, electricity, water }) => ({ diesel, cityGas, electricity, water }))).toEqual(T26);
     expect(d.planMeta[2027].trigger).toBe('연도 등록');
     expect(d.planMeta[2027].targetSource).toMatch(/미확정/);
   });

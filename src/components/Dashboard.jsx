@@ -164,7 +164,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
   }, [yearRecords, fromMonth, toMonth]);
   const avgIntensity = useMemo(() => averageIntensity(chartData2), [chartData2]);
 
-  const renderMetricRow = (label, icon, value, target, unit, factor) => {
+  const renderMetricRow = (label, icon, value, target, unit, factor, reference = false) => {
     const isExceeded = value > target;
     return (
       <div className="bg-[#FAF9F6] border border-[#1C1A17]/15 p-4 sm:p-5 hover:border-[#1C1A17]/40 shadow-sm print-avoid-break">
@@ -180,11 +180,13 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
           </div>
           {periodStats.activeMonthsCount > 0 ? (
             <span className={`px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase border whitespace-nowrap mt-1 ${
-              isExceeded 
-                ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]' 
-                : 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
+              reference
+                ? 'bg-[#F5F5F4] text-[#57534E] border-[#D6D3D1]'
+                : isExceeded
+                  ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'
+                  : 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
             }`}>
-              {isExceeded ? '목표 초과' : '목표 달성'}
+              {reference ? '참고 지표' : (isExceeded ? '목표 초과' : '목표 달성')}
             </span>
           ) : (
             <span className="px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase border whitespace-nowrap mt-1 bg-gray-100 text-gray-500 border-gray-300">
@@ -588,7 +590,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
             {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualDiesel, periodStats.targetDiesel, 'L', getFactors(selectedYear).diesel)}
             {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualCityGas, periodStats.targetCityGas, 'Nm³', getFactors(selectedYear).cityGas)}
             {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, periodStats.actualElectricity, periodStats.targetElectricity, 'kWh', getFactors(selectedYear).electricity)}
-            {renderMetricRow('용수/수도 (참고·Scope 3 제외)', <Icon name="droplet" className="w-4 h-4" />, periodStats.actualWater, periodStats.targetWater, 'TON', getFactors(selectedYear).water)}
+            {renderMetricRow('용수/수도 (참고·Scope 3 제외)', <Icon name="droplet" className="w-4 h-4" />, periodStats.actualWater, periodStats.targetWater, 'TON', getFactors(selectedYear).water, true)}
           </div>
         </div>
       )}
@@ -776,7 +778,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
               {/* 에너지 환산 합계 (MWh) */}
               <tr className="bg-[#F5F5F4] font-bold text-[#1C1A17] border-t border-[#1C1A17]/15">
                 <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-bold whitespace-nowrap">
-                  에너지 환산 합계 (MWh)
+                  에너지 환산 합계 (MWh, 참고)
                 </td>
                 <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel * 0.009444, 1) : '0.0'}
@@ -803,6 +805,10 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-[11px] text-[#78716C] leading-relaxed">
+          에너지 환산계수(참고용): 경유 0.009444 MWh/L · 도시가스 0.011046 MWh/Nm³ · 전력 0.001 MWh/kWh.
+          배출량 산정에는 사용되지 않으며, 감사 자료로 쓰려면 계수의 출처(고시 열량 등)를 확인해 기재해야 합니다.
+        </p>
       </div>
 
       {/* Print Official Footer with Signatures & Real-time Date Time (Only visible when printing / PDF) */}

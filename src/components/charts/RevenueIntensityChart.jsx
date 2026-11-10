@@ -26,9 +26,13 @@ export const RevenueIntensityChart = ({ data, average = null }) => {
         c.textAlign = 'center';
         c.textBaseline = 'bottom';
         c.fillStyle = C.intensity;
+        c.lineJoin = 'round';
+        c.lineWidth = 3;
+        c.strokeStyle = '#FFFFFF';
         data.forEach((d, i) => {
           const el = meta.data[i];
           if (d.intensity === null || d.intensity === undefined || !el) return;
+          c.strokeText(formatVal(d.intensity, 3), el.x, el.y - 8);
           c.fillText(formatVal(d.intensity, 3), el.x, el.y - 8);
         });
         c.restore();

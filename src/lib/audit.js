@@ -106,7 +106,7 @@ const FACTOR_META = [
   { key: 'water', label: '용수/수도 (참고·Scope 3 제외)', unit: 'tCO₂e/TON' },
 ];
 
-export function buildAuditData({ year, records, targets, planMeta = {}, config, scenario = null, changeLog = [], now = new Date() }) {
+export function buildAuditData({ year, records, targets, planMeta = {}, config, scenario = null, changeLog = [], closedMonths = {}, now = new Date() }) {
   const cfg = normalizeAuditConfig(config);
   const yearRecs = records.filter((r) => r.year === year);
   const savedTargets = targets && targets[year];
@@ -123,6 +123,7 @@ export function buildAuditData({ year, records, targets, planMeta = {}, config, 
     return {
       month: m,
       entered: !!rec,
+      closed: !!(closedMonths && closedMonths[`${year}-${String(m).padStart(2, '0')}`]),
       diesel: rec ? Number(rec.diesel) || 0 : null,
       cityGas: rec ? Number(rec.cityGas) || 0 : null,
       electricity: rec ? Number(rec.electricity) || 0 : null,
@@ -202,6 +203,15 @@ export function buildAuditData({ year, records, targets, planMeta = {}, config, 
     name: '월별 실적 입력 완료',
     status: missingMonths.length === 0 ? 'ok' : 'info',
     detail: missingMonths.length === 0 ? '12개월 모두 입력' : `${enteredRows.length}/12개월 입력 · 미입력 ${missingMonths.join(', ')}월`,
+  });
+  const closedList = monthly.filter((r) => r.closed).map((r) => r.month);
+  const openEntered = enteredRows.filter((r) => !r.closed).length;
+  checks.push({
+    name: '월 마감(실적 수정 잠금)',
+    status: closedList.length > 0 ? 'ok' : 'info',
+    detail: closedList.length > 0
+      ? `${closedList.length}개월 마감: ${closedList.join(', ')}월${openEntered > 0 ? ` · 입력됐으나 미마감 ${openEntered}개월` : ''}`
+      : '마감된 월 없음 — 보고·제출한 월은 마감 처리를 권장합니다.',
   });
   const recomputed = calculateEmissions(totals.diesel, totals.cityGas, totals.electricity, year).total;
   checks.push({
@@ -300,7 +310,7 @@ export function buildWorkbookSheets(d) {
     widths: [8, 14, 14, 16, 12, 12, 14, 14, 14, 10],
     rows: [
       ['월', '경유(L)', '도시가스(Nm3)', '구매전력(kWh)', '수도(TON,참고)', '매출(억원)', 'Scope1(tCO2e)', 'Scope2(tCO2e)', '합계(tCO2e)', '입력'],
-      ...d.monthly.map((r) => [r.month, r.diesel ?? '', r.cityGas ?? '', r.electricity ?? '', r.water ?? '', r.revenue ?? '', r3(r.scope1), r3(r.scope2), r3(r.total), r.entered ? '입력' : '미입력']),
+      ...d.monthly.map((r) => [r.month, r.diesel ?? '', r.cityGas ?? '', r.electricity ?? '', r.water ?? '', r.revenue ?? '', r3(r.scope1), r3(r.scope2), r3(r.total), r.closed ? '마감' : (r.entered ? '입력' : '미입력')]),
       ['합계', r3(d.totals.diesel), r3(d.totals.cityGas), r3(d.totals.electricity), r3(d.totals.water), r3(d.totals.revenue), r3(d.totals.scope1), r3(d.totals.scope2), r3(d.totals.total), `${s.enteredCount}개월`],
     ],
   });
