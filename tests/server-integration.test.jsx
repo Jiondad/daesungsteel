@@ -173,3 +173,38 @@ describe('기존(셀 하나) 방식 데이터 이관', () => {
     await waitFor(() => expect(screen.queryByTestId('legacy-banner')).toBeNull());
   });
 });
+
+describe('로그인 실패 안내(원인별)', () => {
+  const alertText = () => window.alert.mock.calls.at(-1)[0];
+
+  it('서버에 관리자 계정이 설정되지 않았으면 그 사실을 알려준다', async () => {
+    startServer(baseDb(), { noAdmin: true });
+    render(<App />);
+    await loaded();
+    clickBtn('실적 입력');
+    await waitFor(() => expect(window.alert).toHaveBeenCalled());
+    expect(alertText()).toMatch(/관리자 계정이 아직 설정되지 않았습니다/);
+    expect(alertText()).toMatch(/ADMIN_PASSWORD/);
+  });
+
+  it('서버가 새 버전으로 배포되지 않았으면(구버전 응답) 새 버전 배포 방법을 안내한다', async () => {
+    startServer(baseDb(), { override: { auth: () => ({ __throw: true }), status: () => ({ __throw: true }) } });
+    render(<App />);
+    await loaded();
+    clickBtn('실적 입력');
+    await waitFor(() => expect(window.alert).toHaveBeenCalled());
+    expect(alertText()).toMatch(/새 버전\(v2\)으로 배포되지 않은 것/);
+    expect(alertText()).toMatch(/배포 관리/);
+  });
+
+  it('비밀번호가 틀리면 한/영·Caps Lock 확인을 안내한다', async () => {
+    startServer(baseDb());
+    window.prompt.mockImplementation(() => 'wrong-password');
+    render(<App />);
+    await loaded();
+    clickBtn('실적 입력');
+    await waitFor(() => expect(window.alert).toHaveBeenCalled());
+    expect(alertText()).toMatch(/비밀번호가 올바르지 않습니다/);
+    expect(alertText()).toMatch(/한\/영/);
+  });
+});

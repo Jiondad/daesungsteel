@@ -158,5 +158,5 @@ export const MonthlyEmissionsChart = ({ data }) => {
     };
   }, [data]);
 
-  return <div className="h-80 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
+  return <div className="h-60 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
 };

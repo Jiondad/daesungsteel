@@ -180,6 +180,20 @@ describe('대시보드 판단(같은 기간 비교)', () => {
     expect(text).toMatch(/미입력 10월~12월/);
     expect(text).not.toMatch(/안정적으로 유지/);
     expect(text).not.toMatch(/의무 감축 로드맵 준수/);
+    // 근거 없는 '공식·검증·완벽 준수' 표현이 화면(인쇄용 머리글 포함)에 남아 있지 않아야 한다
+    expect(text).not.toMatch(/완벽하게 준수|공식 보고서|검증 검인 표준|IPCC \/ 국가 배출 계수 기준|OFFICIAL GREENHOUSE/);
+    expect(text).toMatch(/외부 검증 결과가 아닙니다/);
+  });
+
+  it('메인 화면이 압축되어 제목 카드가 하나로 합쳐지고, 도넛은 분석 결과와 한 줄에 놓인다', async () => {
+    mockServer(okLoad(realisticDb()));
+    render(<App />);
+    await loaded();
+    await waitFor(() => expect(document.body.textContent).toMatch(/목표 대비 달성 현황/));
+    expect(screen.getAllByText(/2026년 1월 ~ 12월 누적 탄소 명세서/).length).toBe(1);
+    expect(document.body.textContent).not.toMatch(/종합 실적 모니터링 대시보드/);
+    expect(document.body.textContent).not.toMatch(/선택 기간 배출 실적 VS 목표 가이드라인/); // 중복되던 막대 비교 블록 제거
+    expect(document.body.textContent).toMatch(/목표 달성률/); // 소형 도넛 카드
   });
 });
 

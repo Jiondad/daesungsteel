@@ -5,9 +5,9 @@ import { createEnv } from '../apps-script/fakes';
 
 export const ADMIN_PASSWORD = 'test-password';
 
-export function startServer(seed = null, { override = {}, legacy = null } = {}) {
+export function startServer(seed = null, { override = {}, legacy = null, noAdmin = false } = {}) {
   const env = createEnv({ legacy });
-  env.props.ADMIN_PASSWORD = ADMIN_PASSWORD;
+  if (!noAdmin) env.props.ADMIN_PASSWORD = ADMIN_PASSWORD;
   if (seed) env.call({ action: 'save', data: JSON.stringify(seed) }); // 호환 모드로 초기 데이터 적재
   env.props.ENFORCE_AUTH = 'true';                                    // 이후는 운영과 같이 인증 필수
   const saves = [];
@@ -17,7 +17,8 @@ export function startServer(seed = null, { override = {}, legacy = null } = {}) 
     bodies.push(body);
     const res = override[body.action] ? override[body.action](body) : env.call(body);
     if (body.action === 'save' && res.result === 'success') saves.push(JSON.parse(body.data));
-    return { json: async () => res };
+    // __throw: 구버전 서버처럼 JSON이 아닌 응답이 오는 상황을 흉내 낸다
+    return { json: async () => { if (res && res.__throw) throw new SyntaxError('Unexpected end of JSON input'); return res; } };
   }));
   return { env, saves, bodies };
 }

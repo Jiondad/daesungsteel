@@ -136,5 +136,5 @@ export const RevenueIntensityChart = ({ data, average = null }) => {
     };
   }, [data, average]);
 
-  return <div className="h-80 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
+  return <div className="h-52 w-full print:h-44 print-avoid-break"><canvas ref={canvasRef} /></div>;
 };

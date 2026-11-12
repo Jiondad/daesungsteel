@@ -7,7 +7,7 @@ import { PLAN_METHOD_START_YEAR, TARGETS_2026 } from './lib/constants';
 import { buildYearPlanTargets } from './lib/planning';
 import { describeDiff, diffRecords, normalizeAuditConfig } from './lib/audit';
 import { AuditReport } from './components/AuditReport';
-import { authenticate, loadDbResponse, logoutSession, saveDbState } from './services/db';
+import { authenticate, getServerStatus, loadDbResponse, logoutSession, saveDbState } from './services/db';
 
 export function App() {
   const [records, setRecords] = useState([]);
@@ -31,22 +31,37 @@ export function App() {
   const [scenarios, setScenarios] = useState([]);
   const [changeLog, setChangeLog] = useState([]);
 
+  // 로그인 실패 원인을 구분해서 안내한다(비밀번호 오류 / 계정 미설정 / 서버가 새 버전이 아님 / 연결 오류)
+  const explainAuthFailure = async (r) => {
+    if (r && r.code === 'AUTH_FAILED') return '비밀번호가 올바르지 않습니다.\n(한/영 전환, Caps Lock, 앞뒤 공백을 확인해 주세요)';
+    if (r && (r.code === 'AUTH_LOCKED' || r.code === 'AUTH_NOT_CONFIGURED') && r.message) return r.message;
+    try {
+      const st = await getServerStatus();
+      if (st && st.server) {
+        if (!st.authConfigured) return '서버에 관리자 계정이 아직 설정되지 않았습니다.\nApps Script 프로젝트 설정 → 스크립트 속성에 ADMIN_PASSWORD 를 추가한 뒤 다시 시도해 주세요.';
+        return (r && r.message) || `인증에 실패했습니다. (서버 ${st.server})`;
+      }
+    } catch (e) { /* 아래 안내로 */ }
+    return '서버(Apps Script)가 새 버전(v2)으로 배포되지 않은 것 같습니다.\n코드를 저장한 뒤 [배포 → 배포 관리 → 연필 아이콘 → 버전: 새 버전 → 배포]를 해야 적용됩니다.';
+  };
+
   // 관리자 인증: 비밀번호는 서버에서 확인하며, 로그인하면 서버가 세션을 발급한다(화면 코드에는 비밀번호가 없다).
   const ensureAdmin = async () => {
     if (sessionRef.current) return true;
     const pw = window.prompt("관리자 인증이 필요합니다. 관리자 비밀번호를 입력하세요:");
     if (!pw) return false;
+    let r = null;
     try {
-      const r = await authenticate(pw);
+      r = await authenticate(pw);
       if (r && r.result === 'success') {
         startSession({ token: r.sessionToken, user: r.user });
         return true;
       }
-      alert('❌ ' + ((r && r.message) || '인증에 실패했습니다.'));
     } catch (e) {
       console.error(e);
-      alert('인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      r = null;
     }
+    alert('❌ ' + (await explainAuthFailure(r)));
     return false;
   };
 
@@ -386,7 +401,7 @@ export function App() {
       )}
 
       {/* Top Banner */}
-      <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-2.5 text-center text-xs text-[#E5E2D9] font-mono flex items-center justify-center gap-2 print:hidden">
+      <div className="bg-[#1C1A17] border-b border-[#2C2A27] px-4 py-1.5 text-center text-[11px] text-[#E5E2D9] font-mono flex items-center justify-center gap-2 print:hidden">
         <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse inline-block" />
         <span className="tracking-wide">ANNUAL REPORT: {new Date().getFullYear()}년 대성스틸 온실가스 배출량(Scope 1·2) 및 감축 목표 관리</span>
       </div>
@@ -406,7 +421,7 @@ export function App() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-[#E5E2D9] px-4 sm:px-6 lg:px-8 py-5 print:hidden">
+      <header className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-md border-b border-[#E5E2D9] px-4 sm:px-6 lg:px-8 py-3 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="w-11 h-11 bg-[#1C1A17] text-[#FAF9F6] flex items-center justify-center font-bold text-lg">DS</div>
@@ -436,7 +451,7 @@ export function App() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {activeTab === 'dashboard' && <Dashboard records={records} targets={targets} onSaveRecord={handleSaveRecord} onDeleteRecord={handleDeleteRecord} onSaveTargets={handleSaveTargets} onNavigateToEntry={() => handleTabChange('entry')} onRefresh={loadData} availableYears={availableYears} />}
         {activeTab === 'entry' && <DataEntry closedMonths={closedMonths} onToggleClose={handleToggleClose} records={records} onSaveRecords={handleSaveRecords} onDeleteRecord={handleDeleteRecord} targets={targets} onSaveTargets={handleSaveTargets} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
         {activeTab === 'targets_tab' && <TargetSetting planMeta={planMeta} targets={targets} onSaveTargets={handleSaveTargets} records={records} onRefresh={loadData} availableYears={availableYears} onRegisterYear={handleRegisterYear} isSaving={isSaving} />}
@@ -452,7 +467,7 @@ export function App() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#F5F2EB] border-t border-[#E5E2D9] py-8 px-4 text-center text-xs text-[#57534E] font-mono mt-12 print:hidden">
+      <footer className="bg-[#F5F2EB] border-t border-[#E5E2D9] py-4 px-4 text-center text-xs text-[#57534E] font-mono mt-6 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
           <p>본 시스템은 입력된 활동자료와 설정된 배출계수로 Scope 1·2 배출량을 산정하는 내부 관리 도구이며, 외부 검증 결과가 아닙니다.</p>
           <p>© {new Date().getFullYear()} (주)대성스틸 안전환경본부. All rights reserved.</p>

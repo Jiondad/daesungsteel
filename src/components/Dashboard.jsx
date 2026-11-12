@@ -167,8 +167,8 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
   const renderMetricRow = (label, icon, value, target, unit, factor, reference = false) => {
     const isExceeded = value > target;
     return (
-      <div className="bg-[#FAF9F6] border border-[#1C1A17]/15 p-4 sm:p-5 hover:border-[#1C1A17]/40 shadow-sm print-avoid-break">
-        <div className="flex flex-col justify-start items-start gap-1.5 mb-4">
+      <div className="bg-[#FAF9F6] border border-[#1C1A17]/15 p-3 hover:border-[#1C1A17]/40 shadow-sm print-avoid-break">
+        <div className="flex flex-col justify-start items-start gap-1 mb-2">
           <div className="flex items-center gap-2.5 w-full">
             <div className="p-2 bg-[#1C1A17] text-[#FAF9F6] shrink-0">
               {icon}
@@ -195,7 +195,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
           )}
         </div>
 
-        <div className="space-y-2 font-mono text-xs mt-3">
+        <div className="space-y-1 font-mono text-xs mt-2">
           <div className="flex justify-between items-center text-[#78716C]">
             <span>① 목표 사용량:</span>
             <span>{formatVal(target, 2)} {unit}</span>
@@ -218,17 +218,17 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
   };
 
   return (
-    <div className="space-y-8 font-sans">
+    <div className="space-y-3 font-sans">
       {/* Print Official Header (Only visible when printing / PDF generation) */}
       <div className="hidden print:block border-b-4 border-[#1C1A17] pb-5 print:pb-2 mb-8 print:mb-3">
         <div className="flex justify-between items-end">
           <div>
-            <span className="text-[10px] text-[#78716C] font-mono tracking-widest block uppercase font-bold">CONFIDENTIAL — GHG EMISSIONS STANDARD REPORT</span>
+            <span className="text-[10px] text-[#78716C] font-mono tracking-widest block uppercase font-bold">INTERNAL — GHG INVENTORY REPORT (SCOPE 1·2)</span>
             <h1 className="text-3xl print:text-xl font-extrabold tracking-tight text-[#1C1A17] font-display mt-1">
-              (주)대성스틸 온실가스 인벤토리 공식 보고서
+              (주)대성스틸 온실가스 인벤토리 보고서
             </h1>
             <p className="text-xs text-[#57534E] font-mono mt-1">
-              OFFICIAL GREENHOUSE GAS EMISSIONS STATEMENT & INVENTORY RECORD
+              GREENHOUSE GAS INVENTORY STATEMENT (SCOPE 1·2)
             </p>
           </div>
           <div className="text-right">
@@ -247,8 +247,8 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
             <strong className="text-[#1C1A17] text-xs font-mono">{fromMonth}월 ~ {toMonth}월 (누적)</strong>
           </div>
           <div className="border border-[#1C1A17]/10 p-2 print:p-1 bg-[#FAF9F6]/50">
-            <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">검증 검인 표준</span>
-            <strong className="text-[#1C1A17] text-xs">IPCC / 국가 배출 계수 기준</strong>
+            <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">산정 범위</span>
+            <strong className="text-[#1C1A17] text-xs">Scope 1·2 (Scope 3 제외)</strong>
           </div>
           <div className="border border-[#1C1A17]/10 p-2 print:p-1 bg-[#FAF9F6]/50">
             <span className="text-[#78716C] block uppercase font-mono text-[9px] tracking-wider font-semibold">문서 관리 코드</span>
@@ -258,14 +258,24 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
       </div>
 
       {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-[#1C1A17]/15 p-4 sm:p-5 shadow-sm print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white border border-[#1C1A17]/15 p-3 shadow-sm print:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-[#1C1A17] text-white">
-            <Icon name="dashboard" className="w-5 h-5" />
+          <div className="p-1.5 bg-[#1C1A17] text-white shrink-0">
+            <Icon name="dashboard" className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-[#1C1A17] font-display">종합 실적 모니터링 대시보드</h2>
-            <p className="text-[11px] sm:text-xs text-[#57534E]">지정된 시작월 ~ 종료월 기간의 탄소 집약도 배출 성과 실적</p>
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-bold text-[#1C1A17] font-display flex items-center gap-2 flex-wrap">
+              <span>{selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서</span>
+              <span className="text-[11px] font-mono font-normal text-[#57534E] bg-[#FAF9F6] border border-[#E5E2D9] px-2 py-0.5 whitespace-nowrap">입력 {periodStats.activeMonthsCount} / {(toMonth - fromMonth + 1)} 개월</span>
+            </h2>
+            <p className="text-[11px] text-[#57534E]">
+              실적을 같은 기간의 누적 목표와 비교합니다.
+              {periodStats.missingMonths.length > 0 && periodStats.activeMonthsCount > 0 && (
+                <span className="text-[#B45309] font-semibold ml-1">
+                  미입력 {monthsLabel(periodStats.missingMonths)}은(는) 목표 누적에서 제외했습니다.
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -310,7 +320,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 h-9 px-3 bg-[#15803D] hover:bg-[#166534] text-white text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm border border-[#15803D]/10 rounded-none shrink-0"
-            title="공식 온실가스 인벤토리 보고서 출력 및 PDF 저장"
+            title="온실가스 인벤토리 보고서 출력 및 PDF 저장"
           >
             <Icon name="print" className="w-3.5 h-3.5" />
             <span>보고서 출력</span>
@@ -329,31 +339,10 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
           already have their own borders, so when this outer box breaks
           across a page it no longer leaves a dangling half-open edge
           that looks like the content got cut off. */}
-      <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm space-y-6 print:border-0 print:shadow-none print:p-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#1C1A17]/10 pb-4">
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-[#1C1A17] uppercase tracking-wider font-display flex items-center gap-2 flex-wrap">
-              <Icon name="dashboard" className="w-5 h-5 text-[#1C1A17] shrink-0" />
-              <span className="whitespace-nowrap">{selectedYear}년 {fromMonth}월 ~ {toMonth}월 누적 탄소 명세서</span>
-              <span className="whitespace-nowrap">(Carbon Statement)</span>
-            </h3>
-            <p className="text-xs text-[#57534E] mt-0.5">
-              선택한 조회 기간 동안의 온실가스 배출 실적을 같은 기간의 누적 목표와 비교합니다.
-              {periodStats.missingMonths.length > 0 && periodStats.activeMonthsCount > 0 && (
-                <span className="block text-[#B45309] font-semibold mt-0.5">
-                  미입력 {monthsLabel(periodStats.missingMonths)}은(는) 목표 누적에서 제외했습니다.
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 bg-[#FAF9F6] border border-[#E5E2D9] px-2.5 py-1 text-xs font-mono shrink-0">
-            <span className="text-[#78716C] uppercase font-bold text-[9px] whitespace-nowrap">조회 범위 내 입력 완료:</span>
-            <span className="text-[#1C1A17] font-bold whitespace-nowrap">{periodStats.activeMonthsCount} / {(toMonth - fromMonth + 1)} 개월</span>
-          </div>
-        </div>
+      <div className="bg-white border border-[#1C1A17]/15 p-4 shadow-sm space-y-3 print:border-0 print:shadow-none print:p-0">
 
         {periodStats.activeMonthsCount > 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-3">
             {/* ① 목표 → ② 실적 → ③ 달성률 */}
             <div className="space-y-3 print-avoid-break">
               <h4 className="text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-sans">
@@ -361,23 +350,23 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                 목표 대비 달성 현황 <span className="text-[11px] font-normal text-[#78716C]">(동일 기간 {periodStats.activeMonthsCount}개월 기준 · 목표 → 실적 → 달성률)</span>
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] print:grid-cols-3 gap-3 md:gap-0 items-stretch font-mono">
-                <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                <div className="bg-[#FAF9F6] p-3 border border-[#1C1A17]/10">
                   <span className="text-[11px] text-[#78716C] block font-bold font-sans">① 목표 (동일 기간 누적)</span>
-                  <span className="text-2xl sm:text-3xl font-bold text-[#0D9488]">{formatVal(periodStats.targetTotal, 2)}</span>
+                  <span className="text-xl sm:text-2xl font-bold text-[#0D9488]">{formatVal(periodStats.targetTotal, 2)}</span>
                   <span className="text-xs text-[#78716C] ml-1">t</span>
                   <span className="text-[10px] text-[#78716C] block font-sans mt-1 leading-tight">기간 전체 목표 {formatVal(periodStats.targetFullTotal, 2)} t</span>
                 </div>
                 <span className="hidden md:flex print:hidden items-center justify-center px-2 text-2xl text-[#A8A29E]" aria-hidden="true">→</span>
-                <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                <div className="bg-[#FAF9F6] p-3 border border-[#1C1A17]/10">
                   <span className="text-[11px] text-[#78716C] block font-bold font-sans">② 실적 (총 배출량)</span>
-                  <span className="text-2xl sm:text-3xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
+                  <span className="text-xl sm:text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)}</span>
                   <span className="text-xs text-[#57534E] ml-1">t</span>
                   <span className="text-[10px] text-[#78716C] block font-sans mt-1 leading-tight">입력 {periodStats.activeMonthsCount}개월 ({monthsLabel(periodStats.activeMonthsList)})</span>
                 </div>
                 <span className="hidden md:flex print:hidden items-center justify-center px-2 text-2xl text-[#A8A29E]" aria-hidden="true">→</span>
-                <div className={`p-4 border ${periodStats.actualTotal > periodStats.targetTotal ? 'bg-[#FEF2F2] border-[#FCA5A5]' : 'bg-[#F0FDF4] border-[#86EFAC]'}`}>
+                <div className={`p-3 border ${periodStats.actualTotal > periodStats.targetTotal ? 'bg-[#FEF2F2] border-[#FCA5A5]' : 'bg-[#F0FDF4] border-[#86EFAC]'}`}>
                   <span className="text-[11px] text-[#57534E] block font-bold font-sans">③ 달성률</span>
-                  <span className={`text-2xl sm:text-3xl font-bold ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
+                  <span className={`text-xl sm:text-2xl font-bold ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
                     {formatVal(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0, 1)}%
                   </span>
                   <span className={`text-[11px] block font-sans font-bold mt-1 ${periodStats.actualTotal > periodStats.targetTotal ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>
@@ -396,7 +385,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                   const over = actual > target;
                   const scale = Math.max(100, rate);
                   return (
-                    <div key={key} className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10" data-testid={`scope-card-${key}`}>
+                    <div key={key} className="bg-[#FAF9F6] p-3 border border-[#1C1A17]/10" data-testid={`scope-card-${key}`}>
                       <span className="text-[12px] font-bold font-sans flex items-center gap-1.5">
                         <span className="inline-block w-2.5 h-2.5" style={{ backgroundColor: color }} />
                         {title}
@@ -406,7 +395,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                         <div><span className="text-[10px] text-[#78716C] block font-sans">② 실적</span><span className="text-sm font-bold text-[#1C1A17]">{formatVal(actual, 2)}</span></div>
                         <div><span className="text-[10px] text-[#78716C] block font-sans">③ 달성률</span><span className={`text-sm font-bold ${over ? 'text-[#991B1B]' : 'text-[#15803D]'}`}>{formatVal(rate, 1)}%</span></div>
                       </div>
-                      <div className="relative h-2 bg-[#EAE6DD] mt-3" aria-hidden="true">
+                      <div className="relative h-2 bg-[#EAE6DD] mt-2" aria-hidden="true">
                         <div className="h-full" style={{ width: `${(rate / scale) * 100}%`, backgroundColor: over ? CHART_COLORS.over : CHART_COLORS.ok }} />
                         <div className="absolute top-[-3px] bottom-[-3px] w-0.5 bg-[#1C1A17]" style={{ left: `${(100 / scale) * 100}%` }} />
                       </div>
@@ -414,7 +403,7 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                     </div>
                   );
                 })}
-                <div className="bg-[#FAF9F6] p-4 border border-[#1C1A17]/10">
+                <div className="bg-[#FAF9F6] p-3 border border-[#1C1A17]/10">
                   <span className="text-[12px] font-bold font-sans block">평균 탄소 집약도</span>
                   <span className="text-2xl font-bold text-[#1C1A17]">{formatVal(periodStats.intensity, 3)}</span>
                   <span className="text-xs text-[#57534E] ml-1">t/억원</span>
@@ -423,8 +412,10 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
               </div>
             </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 gap-3 items-stretch">
+              <div className="lg:col-span-2 print:col-span-2">
             {/* 종합 분석 결과: 달성 현황 바로 아래 */}
-            <div className="p-4 border border-dashed border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7] print-avoid-break">
+            <div className="p-3 border border-dashed h-full border-[#E5E2D9] text-xs leading-relaxed flex items-start gap-2.5 bg-[#FCFAF7] print-avoid-break">
               <Icon name="info" className="w-5 h-5 text-[#78716C] shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold text-[#1C1A17] block">지정 기간 종합 분석 결과</span>
@@ -446,120 +437,18 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
                 </div>
               </div>
             </div>
-
-            {/* Left: Doughnut Chart / Right: Actual vs Target Horizontal Bar Chart */}
-            {/* print:block (instead of staying a CSS grid) — Chromium's print
-                pagination for grid containers is unreliable and can leave a
-                large blank gap before breaking to the next page even when the
-                next section would actually fit. A plain block stack (which
-                looks identical here since print:grid-cols-1 already reduces
-                this to one column) paginates correctly. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-1 print-stack gap-6 print:space-y-4 items-stretch">
-              {/* Doughnut Chart Card (Left) */}
-              <div className="border border-[#1C1A17]/10 p-5 bg-[#FAF9F6] flex flex-col justify-between print-avoid-break">
-                <div>
-                  <h4 className="text-xs font-bold text-[#1C1A17] tracking-wider uppercase font-sans flex items-center gap-1.5 mb-1">
-                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#15803D]" />
-                    목표 달성률 (Achievement Rate)
-                  </h4>
-                  <p className="text-[11px] text-[#78716C]">목표 가이드라인 사용량 대비 실제 온실가스 소진율을 가독성 있게 표현한 도넛 차트입니다.</p>
-                </div>
-                <div className="py-6 flex items-center justify-center">
-                  <AchievementDoughnutChart actual={periodStats.actualTotal} target={periodStats.targetTotal} />
-                </div>
-                <div className="flex justify-between text-[11px] text-[#78716C] font-mono border-t border-[#1C1A17]/10 pt-3">
-                  <span>동일 기간({periodStats.activeMonthsCount}개월) 누적 목표:</span>
-                  <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.targetTotal, 2)} t</span>
-                </div>
-                <div className="flex justify-between text-[11px] text-[#78716C] font-mono pt-1.5">
-                  <span>기간 전체 목표 대비 현재 소진율:</span>
-                  <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.targetFullTotal > 0 ? (periodStats.actualTotal / periodStats.targetFullTotal) * 100 : 0, 1)}%</span>
-                </div>
               </div>
-
-              {/* Horizontal Bar Chart (Right) */}
-              <div className="border border-[#1C1A17]/10 p-5 bg-[#FAF9F6] flex flex-col justify-between print-avoid-break">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
-                  <div>
-                    <h4 className="text-xs font-bold text-[#1C1A17] tracking-wider uppercase font-sans flex items-center gap-1.5">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#1C1A17]" />
-                      선택 기간 배출 실적 vs 목표 가이드라인 비교 분석
-                    </h4>
-                    <p className="text-[11px] text-[#78716C] mt-0.5">실제 누적 배출량과 허용 가이드라인(목표 배출량) 간의 성과 격차를 비교 분석합니다.</p>
-                  </div>
-                  
-                  {/* 요약 임팩트 텍스트 */}
-                  <div className="text-right font-sans shrink-0">
-                    {periodStats.actualTotal > periodStats.targetTotal ? (
-                      <div className="bg-[#FEF2F2] border border-[#FECACA] px-3 py-1 rounded-none">
-                        <span className="text-[9px] text-[#991B1B] block uppercase tracking-wider font-bold leading-none">가이드라인 초과</span>
-                        <span className="text-base font-bold text-[#991B1B] font-mono leading-none block mt-0.5 font-bold">
-                          +{formatVal(periodStats.targetTotal > 0 ? ((periodStats.actualTotal - periodStats.targetTotal) / periodStats.targetTotal) * 100 : 0, 1)}%
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="bg-[#F0FDF4] border border-[#BBF7D0] px-3 py-1 rounded-none">
-                        <span className="text-[9px] text-[#15803D] block uppercase tracking-wider font-bold leading-none">가이드라인 준수</span>
-                        <span className="text-base font-bold text-[#15803D] font-mono leading-none block mt-0.5 font-bold">
-                          -{formatVal(periodStats.targetTotal > 0 ? ((periodStats.targetTotal - periodStats.actualTotal) / periodStats.targetTotal) * 100 : 0, 1)}%
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              <div className="border border-[#1C1A17]/10 p-3 bg-[#FAF9F6] flex flex-col items-center justify-center text-center print-avoid-break">
+                <span className="text-[11px] font-bold text-[#1C1A17] font-sans">목표 달성률</span>
+                <div className="py-1">
+                  <AchievementDoughnutChart actual={periodStats.actualTotal} target={periodStats.targetTotal} size="w-28 h-28" textClass="text-base" />
                 </div>
-
-                {/* Horizontal Visual Chart */}
-                <div className="space-y-4 font-mono py-4">
-                  {/* Actual Bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-semibold text-[#57534E]">
-                      <span>실제 배출 실적 (Actual)</span>
-                      <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.actualTotal, 2)} t</span>
-                    </div>
-                    <div className="w-full bg-[#EAE6DD] h-5 rounded-none relative overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-500 ${
-                          periodStats.actualTotal > periodStats.targetTotal 
-                            ? 'bg-[#991B1B]' // Deep red
-                            : 'bg-[#15803D]' // Deep green
-                        }`}
-                        style={{ 
-                          width: `${Math.min(100, periodStats.targetTotal > 0 ? (periodStats.actualTotal / Math.max(periodStats.actualTotal, periodStats.targetTotal)) * 100 : 0)}%` 
-                        }}
-                      />
-                      <span className="absolute inset-y-0 right-2 flex items-center text-[9px] font-bold text-white drop-shadow-sm">
-                        {formatVal(periodStats.targetTotal > 0 ? (periodStats.actualTotal / periodStats.targetTotal) * 100 : 0, 1)}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Target Bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px] font-semibold text-[#57534E]">
-                      <span>목표 가이드라인 (Target)</span>
-                      <span className="font-bold text-[#1C1A17]">{formatVal(periodStats.targetTotal, 2)} t</span>
-                    </div>
-                    <div className="w-full bg-[#EAE6DD] h-5 rounded-none relative overflow-hidden">
-                      <div 
-                        className="h-full bg-[#57534E] transition-all duration-500"
-                        style={{ 
-                          width: `${Math.min(100, periodStats.actualTotal > 0 ? (periodStats.targetTotal / Math.max(periodStats.actualTotal, periodStats.targetTotal)) * 100 : 0)}%` 
-                        }}
-                      />
-                      <span className="absolute inset-y-0 right-2 flex items-center text-[9px] font-bold text-white drop-shadow-sm">
-                        100%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <p className="text-[10px] text-[#78716C] italic leading-tight border-t border-[#1C1A17]/10 pt-2.5">
-                  ※ 실제 배출량이 누적 목표 가이드라인(100%)을 준수하는지 점검합니다. 목표치를 초과한 경우 적색 막대로 감축 필요성을 나타냅니다.
-                </p>
+                <span className="text-[10px] text-[#78716C] font-mono leading-tight">
+                  동일 기간 누적 목표 {formatVal(periodStats.targetTotal, 2)} t<br />
+                  기간 전체 목표 대비 {formatVal(periodStats.targetFullTotal > 0 ? (periodStats.actualTotal / periodStats.targetFullTotal) * 100 : 0, 1)}%
+                </span>
               </div>
             </div>
-
-
           </div>
         ) : (
           <div className="py-12 text-center bg-[#FAF9F6] border border-dashed border-[#E5E2D9] flex flex-col items-center justify-center space-y-4">
@@ -581,12 +470,12 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
           4 cards can flow across a page break without leaving a big
           blank gap, while no single card ever splits in half. */}
       {periodStats.activeMonthsCount > 0 && (
-        <div className="space-y-4">
-          <h4 className="text-sm sm:text-base font-bold text-[#1C1A17] tracking-widest uppercase font-mono flex items-center gap-2">
-            <Icon name="trend" className="w-5 h-5 text-[#1C1A17]" />
-            에너지 자원별 세부 KPI 분석 및 누출 관리 ({fromMonth}월 ~ {toMonth}월 누적)
+        <div className="space-y-2">
+          <h4 className="text-sm font-bold text-[#1C1A17] flex items-center gap-2">
+            <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
+            에너지 자원별 세부 KPI ({fromMonth}월 ~ {toMonth}월 누적)
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-2 gap-3">
             {renderMetricRow('경유 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualDiesel, periodStats.targetDiesel, 'L', getFactors(selectedYear).diesel)}
             {renderMetricRow('도시가스 (Scope 1)', <Icon name="flame" className="w-4 h-4" />, periodStats.actualCityGas, periodStats.targetCityGas, 'Nm³', getFactors(selectedYear).cityGas)}
             {renderMetricRow('구매전력 (Scope 2)', <Icon name="zap" className="w-4 h-4" />, periodStats.actualElectricity, periodStats.targetElectricity, 'kWh', getFactors(selectedYear).electricity)}
@@ -596,42 +485,42 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
       )}
 
       {/* 그래프: 누적 추이 → 월별 달성 → 원단위 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-1 print-stack gap-8 print:space-y-4">
-        <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
-          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-3 print:pb-1.5 border-[#F2EFE9]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 print:grid-cols-1 print-stack gap-3 print:space-y-4">
+        <div className="bg-white border border-[#1C1A17]/15 p-4 shadow-sm print-avoid-break">
+          <h3 className="text-sm sm:text-base print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-2 print:pb-1.5 border-[#F2EFE9]">
             <Icon name="trend" className="w-4 h-4 text-[#1C1A17]" />
             {selectedYear}년 누적 배출량 vs 누적 목표
           </h3>
-          <p className="text-[11px] text-[#78716C] mb-3">실적 곡선(실선)이 목표 곡선(점선) 위에 있으면 목표를 초과한 상태입니다.</p>
+          <p className="text-[11px] text-[#78716C] mb-2">실적 곡선(실선)이 목표 곡선(점선) 위에 있으면 목표를 초과한 상태입니다.</p>
           <CumulativeChart data={cumulativeData} />
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-4 print:mt-2 justify-center" data-testid="legend-cumulative">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-2 print:mt-2 justify-center" data-testid="legend-cumulative">
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.actualLine, borderTopStyle: 'solid' }} />누적 실적</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.targetLine, borderTopStyle: 'dashed' }} />누적 목표</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break">
-          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-3 print:pb-1.5 border-[#F2EFE9]">
+        <div className="bg-white border border-[#1C1A17]/15 p-4 shadow-sm print-avoid-break">
+          <h3 className="text-sm sm:text-base print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-2 print:pb-1.5 border-[#F2EFE9]">
             <Icon name="layers" className="w-4 h-4 text-[#1C1A17]" />
             {selectedYear}년 월별 목표 대비 실적과 달성률
           </h3>
-          <p className="text-[11px] text-[#78716C] mb-3">막대 위 %는 월 목표 대비 달성률입니다(<span className="font-bold text-[#B91C1C]">빨강 = 초과</span>, <span className="font-bold text-[#15803D]">초록 = 이내</span>). 미입력 월은 회색으로 표시됩니다.</p>
+          <p className="text-[11px] text-[#78716C] mb-2">막대 위 %는 월 목표 대비 달성률입니다(<span className="font-bold text-[#B91C1C]">빨강 = 초과</span>, <span className="font-bold text-[#15803D]">초록 = 이내</span>). 미입력 월은 회색으로 표시됩니다.</p>
           <MonthlyEmissionsChart data={monthlyData} />
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-4 print:mt-2 justify-center" data-testid="legend-monthly">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-2 print:mt-2 justify-center" data-testid="legend-monthly">
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.targetBarBorder }} />월 목표</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.scope1 }} />실적 Scope 1</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.scope2 }} />실적 Scope 2</span>
           </div>
         </div>
 
-        <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm print-avoid-break lg:col-span-2 print:col-span-1">
-          <h3 className="text-base sm:text-lg print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-3 print:pb-1.5 border-[#F2EFE9]">
+        <div className="bg-white border border-[#1C1A17]/15 p-4 shadow-sm print-avoid-break lg:col-span-2 print:col-span-1">
+          <h3 className="text-sm sm:text-base print:text-sm font-bold text-[#1C1A17] flex items-center gap-2 font-display mb-1 border-b pb-2 print:pb-1.5 border-[#F2EFE9]">
             <Icon name="coins" className="w-4 h-4 text-[#1C1A17]" />
             {selectedYear}년 월별 매출액 대비 배출량(원단위) 추이
           </h3>
-          <p className="text-[11px] text-[#78716C] mb-3">원단위가 낮을수록 같은 매출을 더 적은 배출로 만들었다는 뜻입니다. 점 위 숫자는 월별 원단위입니다.</p>
+          <p className="text-[11px] text-[#78716C] mb-2">원단위가 낮을수록 같은 매출을 더 적은 배출로 만들었다는 뜻입니다. 점 위 숫자는 월별 원단위입니다.</p>
           <RevenueIntensityChart data={chartData2} average={avgIntensity} />
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-4 print:mt-2 justify-center" data-testid="legend-intensity">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-mono mt-2 print:mt-2 justify-center" data-testid="legend-intensity">
             <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3" style={{ backgroundColor: CHART_COLORS.revenueBorder }} />월별 매출액 (억원)</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.intensity, borderTopStyle: 'solid' }} />배출 원단위 (tCO₂e/억원)</span>
             <span className="flex items-center gap-1.5"><span className="inline-block w-5 border-t-[3px]" style={{ borderColor: CHART_COLORS.intensityAvg, borderTopStyle: 'dashed' }} />평균 원단위</span>
@@ -640,19 +529,19 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
       </div>
 
       {/* Raw Data Table Section */}
-      <div className="bg-white border border-[#1C1A17]/15 p-6 shadow-sm">
+      <div className="bg-white border border-[#1C1A17]/15 p-4 shadow-sm">
         {/* print-keep-with-next: without this, the heading+description
             can get stranded alone at the bottom of a page while the
             actual table starts fresh on the next page. This forces
             them to move to the next page together instead. */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#FAF9F6] print-keep-with-next">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-[#FAF9F6] print-keep-with-next">
           <div>
-            <h3 className="text-lg font-bold text-[#1C1A17] flex items-center gap-2 font-display">
+            <h3 className="text-base font-bold text-[#1C1A17] flex items-center gap-2 font-display">
               <Icon name="database" className="w-4 h-4 text-[#1C1A17]" />
               {selectedYear}년 월별 로우데이터(Raw Data) 세부 이력
             </h3>
             <p className="text-xs text-[#57534E] mt-0.5">
-              선택한 연도의 1월부터 12월까지 입력된 실제 원본 사용량 데이터와 계산된 탄소배출량 및 매출 원단위 정보를 확인할 수 있습니다. (선택된 조회 기간 {fromMonth}월 ~ {toMonth}월은 밝은 배경색으로 강조 표시됩니다.)
+              입력된 월별 원본 사용량과 계산된 탄소배출량·원단위입니다. (조회 기간 {fromMonth}월 ~ {toMonth}월은 밝은 배경으로 표시)
             </p>
           </div>
         </div>
@@ -721,84 +610,84 @@ export const Dashboard = ({ records, targets = {}, onNavigateToEntry, onRefresh,
 
               {/* 선택 기간 합계 / 평균 */}
               <tr className="bg-[#EAE6DD] font-bold text-[#1C1A17] border-t-2 border-[#1C1A17]/30">
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">
                   선택 기간 합계 / 평균 ({fromMonth}월~{toMonth}월)
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualDiesel, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualCityGas, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualElectricity, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualWater, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualRevenue, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
                   {periodStats.activeMonthsCount > 0 ? formatVal(periodStats.actualTotal, 2) : '0.00'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 text-right font-mono text-[#15803D]">
+                <td className="py-1.5 px-2 sm:px-3 text-right font-mono text-[#15803D]">
                   {periodStats.activeMonthsCount > 0 && periodStats.intensity > 0 ? formatVal(periodStats.intensity, 3) : '-'}
                 </td>
               </tr>
 
               {/* 연도계 (1~12월 전체 합계/평균) */}
               <tr className="bg-[#F2EFE9] font-bold text-[#1C1A17] border-t border-[#1C1A17]/20">
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center whitespace-nowrap">
                   연도계 (1~12월 전체)
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.cityGas, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.electricity, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.water, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.revenue, 0) : '0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono text-[#1E40AF]">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.emissions, 2) : '0.00'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 text-right font-mono text-[#15803D]">
+                <td className="py-1.5 px-2 sm:px-3 text-right font-mono text-[#15803D]">
                   {yearStats.activeMonths > 0 && yearStats.intensity > 0 ? formatVal(yearStats.intensity, 3) : '-'}
                 </td>
               </tr>
 
               {/* 에너지 환산 합계 (MWh) */}
               <tr className="bg-[#F5F5F4] font-bold text-[#1C1A17] border-t border-[#1C1A17]/15">
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-bold whitespace-nowrap">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-bold whitespace-nowrap">
                   에너지 환산 합계 (MWh, 참고)
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.diesel * 0.009444, 1) : '0.0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.cityGas * 0.011046, 1) : '0.0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-right font-mono">
                   {yearStats.activeMonths > 0 ? formatVal(yearStats.electricity * 0.001, 1) : '0.0'}
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
                   -
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
                   -
                 </td>
-                <td className="py-3 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
+                <td className="py-1.5 px-2 sm:px-3 border-r border-[#1C1A17]/10 text-center font-mono text-[#57534E]">
                   -
                 </td>
-                <td className="py-3 px-2 sm:px-3 text-center font-mono text-[#57534E]">
+                <td className="py-1.5 px-2 sm:px-3 text-center font-mono text-[#57534E]">
                   -
                 </td>
               </tr>

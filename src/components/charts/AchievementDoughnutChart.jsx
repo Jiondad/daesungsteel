@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 
 // --- COOPERATIVE ACHIEVEMENT DOUGHNUT CHART ---
-export const AchievementDoughnutChart = ({ actual, target }) => {
+export const AchievementDoughnutChart = ({ actual, target, size = 'w-40 h-40', textClass = 'text-2xl' }) => {
   const canvasRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -54,10 +54,10 @@ export const AchievementDoughnutChart = ({ actual, target }) => {
   const rate = target > 0 ? (actual / target) * 100 : 0;
 
   return (
-    <div className="relative w-40 h-40 mx-auto">
+    <div className={`relative ${size} mx-auto`}>
       <canvas ref={canvasRef} />
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-        <span className={`text-2xl font-black font-mono leading-none ${rate > 100 ? 'text-[#991B1B]' : 'text-[#1C1A17]'}`}>{rate.toFixed(1)}%</span>
+        <span className={`${textClass} font-black font-mono leading-none ${rate > 100 ? 'text-[#991B1B]' : 'text-[#1C1A17]'}`}>{rate.toFixed(1)}%</span>
         <span className={`text-[10px] font-bold tracking-wider mt-1.5 ${rate > 100 ? 'text-[#991B1B]' : 'text-[#78716C]'}`}>{rate > 100 ? '목표 초과' : '목표 이내'}</span>
       </div>
     </div>

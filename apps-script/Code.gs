@@ -97,18 +97,24 @@ function setAdminUser(name, password) {
   users[name] = { salt: salt, hash: hashPw_(salt, password) };
   props_().setProperty('ADMIN_USERS', JSON.stringify(users));
 }
+function authConfigured_() {
+  return Object.keys(adminUsers_()).length > 0 || !!String(props_().getProperty('ADMIN_PASSWORD') || '').trim();
+}
 function authenticate_(password) {
+  // 관리자 계정이 하나도 없으면 "비밀번호 틀림"이 아니라 설정 누락임을 알려준다(로그인 실패 횟수에도 넣지 않음)
+  if (!authConfigured_()) fail_('AUTH_NOT_CONFIGURED', '서버에 관리자 계정이 아직 설정되지 않았습니다. Apps Script 프로젝트 설정 → 스크립트 속성에 ADMIN_PASSWORD 를 추가하거나 setAdminUser 를 실행하세요.');
   var cache = CacheService.getScriptCache();
   var fails = Number(cache.get('authfail') || 0);
   if (fails >= AUTH_FAIL_LIMIT_) fail_('AUTH_LOCKED', '로그인 시도가 너무 많습니다. 10분 뒤에 다시 시도하세요.');
   var pw = String(password || '');
+  var tries = pw === pw.trim() ? [pw] : [pw, pw.trim()];   // 앞뒤 공백이 섞여 들어온 경우도 허용
   var user = null;
   var users = adminUsers_();
   Object.keys(users).forEach(function (name) {
-    if (!user && users[name] && hashPw_(users[name].salt, pw) === users[name].hash) user = name;
+    tries.forEach(function (t) { if (!user && users[name] && hashPw_(users[name].salt, t) === users[name].hash) user = name; });
   });
-  var shared = props_().getProperty('ADMIN_PASSWORD');
-  if (!user && shared && pw === shared) user = '관리자';
+  var shared = String(props_().getProperty('ADMIN_PASSWORD') || '').trim();   // 속성에 붙여넣을 때 섞인 앞뒤 공백 제거
+  if (!user && shared) tries.forEach(function (t) { if (t === shared) user = '관리자'; });
   if (!user) {
     cache.put('authfail', String(fails + 1), 600);
     appendLog_({ at: nowIso_(), version: readMeta_().version, user: '(미인증)', action: '로그인 실패', year: '', detail: '관리자 인증 실패', changes: '' });
@@ -427,6 +433,11 @@ function handleAuth_(p) {
   return { result: 'success', user: user, sessionToken: token, ttlSec: SESSION_TTL_SEC_, enforce: enforceAuth_() };
 }
 
+// 설정 점검용(비밀 값은 돌려주지 않음): 서버 버전, 관리자 계정 설정 여부, 인증 강제 여부
+function handleStatus_() {
+  return { result: 'success', server: VERSION_, authConfigured: authConfigured_(), enforce: enforceAuth_() };
+}
+
 function doPost(e) {
   var out;
   try {
@@ -434,6 +445,7 @@ function doPost(e) {
     if (p.action === 'load') out = handleLoad_(p);
     else if (p.action === 'save') out = handleSave_(p);
     else if (p.action === 'auth') out = handleAuth_(p);
+    else if (p.action === 'status') out = handleStatus_();
     else if (p.action === 'logout') { if (p.sessionToken) CacheService.getScriptCache().remove('sess_' + p.sessionToken); out = { result: 'success' }; }
     else fail_('UNKNOWN_ACTION', '지원하지 않는 요청입니다.');
   } catch (err) {

@@ -29,3 +29,8 @@ export function logoutSession(sessionToken) {
 export function saveDbState(state, { sessionToken, baseVersion, log, unlockReason } = {}) {
   return post({ action: 'save', cellLocation: 'A1', sessionToken, baseVersion, log, unlockReason, data: JSON.stringify(state) });
 }
+
+// 서버 상태 점검(서버 버전·관리자 계정 설정 여부). 로그인 실패 원인 안내에 쓴다.
+export function getServerStatus() {
+  return post({ action: 'status' });
+}

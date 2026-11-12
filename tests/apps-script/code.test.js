@@ -250,3 +250,28 @@ describe('월 마감 잠금', () => {
     expect(env.sheet('ClosedMonths').getLastRow()).toBe(1);
   });
 });
+
+describe('로그인 실패 원인 구분', () => {
+  it('관리자 계정이 하나도 없으면 "비밀번호 틀림"이 아니라 "계정 미설정"으로 알려주고 실패 횟수에는 넣지 않는다', () => {
+    const env = createEnv();
+    for (let i = 0; i < 12; i++) expect(login(env, 'whatever')).toMatchObject({ result: 'error', code: 'AUTH_NOT_CONFIGURED' });
+    env.props.ADMIN_PASSWORD = 'shared-pass-1';
+    expect(login(env, 'shared-pass-1')).toMatchObject({ result: 'success' });   // 잠기지 않음
+  });
+  it('status 로 서버 버전·계정 설정 여부를 확인할 수 있다(비밀 값은 노출하지 않음)', () => {
+    const env = createEnv();
+    expect(env.call({ action: 'status' })).toEqual({ result: 'success', server: 'v2.0', authConfigured: false, enforce: false });
+    env.props.ADMIN_PASSWORD = 'shared-pass-1';
+    env.props.ENFORCE_AUTH = 'true';
+    const st = env.call({ action: 'status' });
+    expect(st).toMatchObject({ authConfigured: true, enforce: true });
+    expect(JSON.stringify(st)).not.toContain('shared-pass-1');
+  });
+  it('스크립트 속성에 붙여넣을 때 섞인 앞뒤 공백·줄바꿈이 있어도 로그인된다', () => {
+    const env = createEnv();
+    env.props.ADMIN_PASSWORD = '  shared-pass-1\n';
+    expect(login(env, 'shared-pass-1')).toMatchObject({ result: 'success' });
+    expect(login(env, ' shared-pass-1 ')).toMatchObject({ result: 'success' });
+    expect(login(env, 'shared-pass-2')).toMatchObject({ code: 'AUTH_FAILED' });
+  });
+});
