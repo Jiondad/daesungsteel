@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { App } from '../src/App.jsx';
 import { ADMIN_PASSWORD, startServer } from './helpers/server';
+import { hasValue, waitForChart } from './helpers/charts';
 import { TARGETS_2026 } from '../src/lib/constants';
 
 const rec = (y, m, k = 1) => ({
@@ -319,7 +320,7 @@ describe('대시보드 구성: 목표 → 실적 → 달성률 순서와 그래�
     render(<App />);
     await loaded();
     await waitFor(() => expect(document.body.textContent).toMatch(/월별 목표 대비 실적과 달성률/));
-    const monthly = globalThis.__chartConfigs.filter((c) => c.data.datasets[0].label === '월 목표').at(-1);
+    const monthly = await waitForChart((c) => c.data.datasets[0].label === '월 목표', (c) => hasValue(c.data.datasets[1].data));
     expect(monthly.data.datasets.map((d) => d.stack)).toEqual(['target', 'actual', 'actual']);
     expect(monthly.data.datasets[1].data.slice(0, 9).every((v) => typeof v === 'number')).toBe(true);
     expect(monthly.data.datasets[1].data.slice(9)).toEqual([null, null, null]);
@@ -337,7 +338,7 @@ describe('대시보드 구성: 목표 → 실적 → 달성률 순서와 그래�
     render(<App />);
     await loaded();
     await waitFor(() => expect(document.body.textContent).toMatch(/누적 배출량 vs 누적 목표/));
-    const cum = globalThis.__chartConfigs.filter((c) => c.data.datasets[0].label === '누적 목표').at(-1);
+    const cum = await waitForChart((c) => c.data.datasets[0].label === '누적 목표', (c) => hasValue(c.data.datasets[1].data));
     const target = cum.data.datasets[0].data;
     const actual = cum.data.datasets[1].data;
     expect(target[11]).toBeCloseTo(578.05, 1);
